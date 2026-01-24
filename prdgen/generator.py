@@ -11,19 +11,25 @@ from .prompts import (
     capabilities_prompt,
     capability_cards_prompt,
     lean_canvas_prompt,
+    epics_prompt,
+    user_stories_prompt,
     PRD_OUTLINE,
 )
 from .utils import ensure_sections, strip_trailing_noise
 from .ingest import IngestedDoc, format_corpus
 from .capability_cards import extract_l1_names, ensure_cards_for_l1
+from .epics import ensure_epics_for_all_l1, add_epic_summary_header, extract_epic_ids
+from .features import add_feature_summary_header, ensure_features_for_epics, extract_feature_ids
+from .stories import add_story_summary_header, ensure_stories_for_features
 
 LOG = logging.getLogger("prdgen.generator")
 
 SYSTEM_SUMMARY = "You summarize multiple product documents faithfully. Do not hallucinate missing facts."
 SYSTEM_PRD = "You produce high-quality PRDs. Follow the outline and do not hallucinate missing facts."
-SYSTEM_FEATURES = "You produce structured feature lists derived strictly from the PRD."
+SYSTEM_FEATURES = "You produce structured feature lists derived strictly from the PRD and epics."
 SYSTEM_CAPS = "You produce capability maps derived strictly from the PRD."
 SYSTEM_CANVAS = "You produce Lean Canvas derived strictly from the PRD and capability map."
+SYSTEM_STORIES = "You produce detailed user stories with Gherkin acceptance criteria derived strictly from features."
 
 def _run_step(
     loaded: LoadedModel,
@@ -48,13 +54,15 @@ def generate_from_folder(
     loaded: LoadedModel,
     cfg: GenerationConfig,
     docs: List[IngestedDoc],
-) -> Tuple[str, str, str, str, str, str, Dict[str, Any]]:
+) -> Tuple[str, str, str, str, str, str, str, str, str, Dict[str, Any]]:
     """Folder pipeline:
     0) Corpus summary
     1) PRD
     2) Capability map (L0/L1/L2)
     2.5) L1 capability cards
-    3) Feature list
+    3) Epics (from capabilities)
+    3.5) Features (epic-aware with acceptance criteria)
+    3.75) User Stories (from features)
     4) Lean Canvas
     """
     meta: Dict[str, Any] = {"model_id": cfg.model_id, "timings": {}, "generation": as_dict(cfg)}
@@ -113,17 +121,49 @@ def generate_from_folder(
     cards_md = ensure_cards_for_l1(cards_md, l1_names)
     meta["timings"]["capability_cards_seconds"] = round(time.time() - t2b, 3)
 
-    # Step 3: Features
+    # Step 3: Epics
     t3 = time.time()
+    epics_md = _run_step(
+        loaded,
+        SYSTEM_CAPS,
+        epics_prompt(prd_md, caps_md, cards_md),
+        cfg,
+        max_new_tokens=1200,
+        temperature=max(cfg.temperature - 0.2, 0.3),
+    )
+    epics_md = ensure_epics_for_all_l1(epics_md, l1_names)
+    epics_md = add_epic_summary_header(epics_md)
+    meta["timings"]["epics_seconds"] = round(time.time() - t3, 3)
+
+    # Step 3.5: Features (epic-aware)
+    t3b = time.time()
     features_md = _run_step(
         loaded,
         SYSTEM_FEATURES,
-        features_prompt(prd_md),
+        features_prompt(prd_md, epics_md),
         cfg,
-        max_new_tokens=min(cfg.max_new_tokens, 900),
+        max_new_tokens=1400,
         temperature=max(cfg.temperature - 0.1, 0.2),
     )
-    meta["timings"]["features_seconds"] = round(time.time() - t3, 3)
+    epic_ids = extract_epic_ids(epics_md)
+    features_md = ensure_features_for_epics(features_md, epic_ids)
+    features_md = add_feature_summary_header(features_md, epics_md)
+    meta["timings"]["features_seconds"] = round(time.time() - t3b, 3)
+
+    # Step 3.75: User Stories
+    t3c = time.time()
+    stories_md = _run_step(
+        loaded,
+        SYSTEM_STORIES,
+        user_stories_prompt(prd_md, epics_md, features_md),
+        cfg,
+        max_new_tokens=1600,
+        temperature=max(cfg.temperature - 0.2, 0.3),
+    )
+    feature_ids = extract_feature_ids(features_md)
+    stories_md = ensure_stories_for_features(stories_md, feature_ids)
+    stories_md = add_story_summary_header(stories_md)
+    meta["timings"]["user_stories_seconds"] = round(time.time() - t3c, 3)
 
     # Step 4: Lean Canvas
     t4 = time.time()
@@ -142,11 +182,13 @@ def generate_from_folder(
         "prd_md_chars": len(prd_md),
         "capabilities_md_chars": len(caps_md),
         "capability_cards_md_chars": len(cards_md),
+        "epics_md_chars": len(epics_md),
         "features_md_chars": len(features_md),
+        "user_stories_md_chars": len(stories_md),
         "lean_canvas_md_chars": len(canvas_md),
     }
 
-    return summary_md, prd_md, caps_md, cards_md, features_md, canvas_md, meta
+    return summary_md, prd_md, caps_md, cards_md, epics_md, features_md, stories_md, canvas_md, meta
 
 def generate_prd_and_features(loaded: LoadedModel, cfg: GenerationConfig, product_intent: str):
     """Backward-compatible: single intent string -> PRD + features."""

@@ -54,18 +54,45 @@ python -m prdgen.cli \
 ```
 
 Outputs:
-- `out/corpus_summary.md`
-- `out/prd.md`
-- `out/capabilities.md` (L0/L1/L2)
-- `out/features.md`
-- `out/lean_canvas.md`
-- `out/run.json`
+- `out/corpus_summary.md` - Consolidated summary of all input documents
+- `out/prd.md` - Product Requirements Document
+- `out/capabilities.md` - Hierarchical capability map (L0/L1/L2)
+- `out/capability_cards.md` - Detailed L1 capability cards with success signals
+- `out/epics.md` - High-level epics from L1 capabilities
+- `out/features.md` - Epic-aware features with acceptance criteria
+- `out/user_stories.md` - Detailed user stories with Gherkin acceptance criteria
+- `out/lean_canvas.md` - Business model canvas
+- `out/run.json` - Metadata and timing information
 
+## Pipeline Structure
 
-Folder outputs now include `out/capability_cards.md` (L1 capability cards: description, objective, personas, design considerations, related L2).
+The tool follows a structured top-down decomposition:
 
+```
+Documents → PRD → Capabilities (L0/L1/L2) → Epics → Features → User Stories
+```
 
-Capability cards include a **Success Signals** section per L1, which can later map to epic acceptance criteria.
+**Capability Cards** include a Success Signals section that maps to epic acceptance criteria.
+
+**Epics** include:
+- Epic ID, priority, and complexity
+- Business objectives and success criteria
+- Target personas and scope
+- Dependencies and acceptance criteria
+
+**Features** (epic-aware with acceptance criteria):
+- Feature ID linked to parent epic
+- Testable acceptance criteria (3-6 per feature)
+- Priority, complexity, dependencies, and risks
+- Organized by epic for traceability
+
+**User Stories** (detailed, developer-ready):
+- Story ID linked to feature and epic
+- Standard "As a... I want... So that..." format
+- Gherkin-style acceptance criteria (Given/When/Then)
+- Story point estimates (Fibonacci scale)
+- Technical notes for developers
+- Definition of done checklist
 
 ## Example: Loan Underwriting (agentic AI, human-in-the-loop)
 

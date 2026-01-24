@@ -14,7 +14,7 @@ LOG = logging.getLogger("prdgen.cli")
 def main():
     ap = argparse.ArgumentParser(
         prog="prdgen",
-        description="Docs/Notes Folder → PRD + Capabilities + Capability Cards + Lean Canvas (HF instruct model)",
+        description="Docs/Notes Folder → PRD + Capabilities + Capability Cards + Epics + Features + User Stories + Lean Canvas (HF instruct model)",
     )
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--input", help="Path to a text file containing product intent (single-file mode)")
@@ -68,14 +68,16 @@ def main():
             max_chars_per_file=args.max_chars_per_file,
         )
 
-        LOG.info("Generating corpus summary + PRD + capabilities + capability cards + features + lean canvas...")
-        summary_md, prd_md, caps_md, cards_md, features_md, canvas_md, meta = generate_from_folder(loaded, cfg, docs)
+        LOG.info("Generating corpus summary + PRD + capabilities + capability cards + epics + features + user stories + lean canvas...")
+        summary_md, prd_md, caps_md, cards_md, epics_md, features_md, stories_md, canvas_md, meta = generate_from_folder(loaded, cfg, docs)
 
         write_text(str(outdir / "corpus_summary.md"), summary_md)
         write_text(str(outdir / "prd.md"), prd_md)
         write_text(str(outdir / "capabilities.md"), caps_md)
         write_text(str(outdir / "capability_cards.md"), cards_md)
+        write_text(str(outdir / "epics.md"), epics_md)
         write_text(str(outdir / "features.md"), features_md)
+        write_text(str(outdir / "user_stories.md"), stories_md)
         write_text(str(outdir / "lean_canvas.md"), canvas_md)
         write_text(str(outdir / "run.json"), json.dumps(meta, indent=2))
 
@@ -84,7 +86,9 @@ def main():
         print(f"- {outdir/'prd.md'}")
         print(f"- {outdir/'capabilities.md'}")
         print(f"- {outdir/'capability_cards.md'}")
+        print(f"- {outdir/'epics.md'}")
         print(f"- {outdir/'features.md'}")
+        print(f"- {outdir/'user_stories.md'}")
         print(f"- {outdir/'lean_canvas.md'}")
         print(f"- {outdir/'run.json'}")
         return
