@@ -20,4 +20,4 @@ echo ""
 
 # Change to backend directory and run uvicorn using venv's Python
 cd "$SCRIPT_DIR"
-"$PYTHON_BIN" -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+"$PYTHON_BIN" -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
