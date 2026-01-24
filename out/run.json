@@ -1,0 +1,62 @@
+{
+  "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+  "timings": {
+    "corpus_summary_seconds": 118.616,
+    "prd_seconds": 126.213,
+    "capabilities_seconds": 40.399,
+    "capability_cards_seconds": 306.784,
+    "features_seconds": 262.714,
+    "lean_canvas_seconds": 184.283
+  },
+  "generation": {
+    "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+    "device": "cpu",
+    "dtype": "auto",
+    "max_new_tokens": 800,
+    "temperature": 0.5,
+    "top_p": 0.9,
+    "repetition_penalty": 1.05,
+    "prd_min_sections": 10,
+    "write_debug": true
+  },
+  "inputs": [
+    {
+      "path": "examples/loan_underwriting_docs/current_state_process.md",
+      "kind": "text",
+      "chars": 581
+    },
+    {
+      "path": "examples/loan_underwriting_docs/exec_vision.md",
+      "kind": "text",
+      "chars": 768
+    },
+    {
+      "path": "examples/loan_underwriting_docs/meeting_notes_discovery.txt",
+      "kind": "text",
+      "chars": 835
+    },
+    {
+      "path": "examples/loan_underwriting_docs/pain_points_from_ops.txt",
+      "kind": "text",
+      "chars": 310
+    },
+    {
+      "path": "examples/loan_underwriting_docs/regulatory_constraints.md",
+      "kind": "text",
+      "chars": 510
+    },
+    {
+      "path": "examples/loan_underwriting_docs/sample_customer_feedback.txt",
+      "kind": "text",
+      "chars": 202
+    }
+  ],
+  "artifacts": {
+    "corpus_summary_md_chars": 7046,
+    "prd_md_chars": 10423,
+    "capabilities_md_chars": 11428,
+    "capability_cards_md_chars": 28816,
+    "features_md_chars": 15098,
+    "lean_canvas_md_chars": 24786
+  }
+}

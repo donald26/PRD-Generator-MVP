@@ -1,0 +1,8 @@
+Build an internal developer portal that standardizes service onboarding: templates, CI/CD, observability, ownership, and documentation.
+Goals:
+- Reduce time to onboard a new microservice from 2 weeks to 2 days
+- Enforce golden paths for security and compliance
+- Provide a catalog of services and dependencies
+Constraints:
+- Works with GitHub and Kubernetes
+- SSO required

@@ -1,0 +1,8 @@
+Ops & Underwriting Team Feedback
+
+- Too much time spent on low-risk applications
+- Hard to keep policies in sync across teams
+- Analysts don't trust automated scores today
+- Reviewing documents is repetitive and error-prone
+- Explaining decisions to auditors is painful
+- Training new underwriters takes months

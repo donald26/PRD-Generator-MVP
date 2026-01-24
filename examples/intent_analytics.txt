@@ -1,0 +1,6 @@
+Build a self-serve analytics platform for mid-sized e-commerce companies to understand funnel drop-offs, customer cohorts, and revenue drivers without needing a data team.
+Key constraints:
+- Setup must be < 10 minutes for a Shopify store
+- Non-technical users (marketing/growth) are primary users
+- Must support privacy and data retention controls
+- Must handle 50M events/day across customers

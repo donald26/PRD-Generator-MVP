@@ -1,0 +1,19 @@
+Discovery session – AI underwriting platform
+
+Participants: Head of Credit, Ops Lead, Product, Engineering
+
+- Goal is to reduce underwriting TAT from days to minutes
+- Current process is heavily manual, rule-based + spreadsheets
+- Analysts pull data from multiple sources: bank statements, credit bureaus, KYC docs
+- Desire to introduce AI agents that can:
+  - Pre-screen applications
+  - Flag risk factors
+  - Recommend approve / reject / manual review
+- Humans must stay in the loop for high-risk loans
+- Need explainability for every decision
+- Regulators will audit decisions
+- Initial focus on SME loans, not retail credit cards
+- Non-goal: fully autonomous approval in phase 1
+- Need configurable risk policies per lender
+- Integration with existing LOS systems is mandatory
+- Latency matters — decisions should be near real-time

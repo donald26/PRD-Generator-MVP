@@ -1,0 +1,8 @@
+Build a mobile-first appointment scheduling product for multi-location dental clinics.
+Key goals:
+- Reduce no-shows with reminders and easy rescheduling
+- Support insurance pre-check workflows
+- Provide a staff dashboard for schedule optimization
+Constraints:
+- HIPAA-adjacent privacy expectations
+- Multi-tenant (each clinic group isolated)

@@ -1,0 +1,7 @@
+Meeting notes (Jan 10):
+- Idea: self-serve analytics for Shopify merchants
+- Must set up in <10 minutes via Shopify app install
+- Personas: Growth manager, Marketing manager
+- Pain: unclear funnel drop-offs, attribution, cohort retention
+- Non-goal: full data warehouse; focus on insights + action
+- Privacy: data retention controls; PII minimization
