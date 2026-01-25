@@ -372,7 +372,7 @@
                 } catch (error) {
                     console.error('Error polling progress:', error);
                 }
-            }, 1000); // Poll every second
+            }, 10000); // Poll every 10 seconds
         }
 
         async function uploadAndGenerate() {

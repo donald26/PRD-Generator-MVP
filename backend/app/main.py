@@ -300,7 +300,28 @@ async def get_job_progress(job_id: str):
     """
     # Check if job is in progress
     if job_id in job_progress:
-        return job_progress[job_id]
+        progress_data = job_progress[job_id]
+
+        # Transform enhanced progress format to simple format for backward compatibility
+        if "overall_progress" in progress_data:
+            # Enhanced format - transform it
+            current_artifact = progress_data.get("current_artifact", "Processing")
+            artifacts_info = progress_data.get("artifacts", {})
+
+            # Get current artifact message
+            message = "Processing..."
+            if current_artifact and current_artifact in artifacts_info:
+                message = artifacts_info[current_artifact].get("message", "Processing...")
+
+            return {
+                "step": current_artifact or "Processing",
+                "progress": progress_data.get("overall_progress", 0),
+                "message": message,
+                "status": progress_data.get("overall_status", "processing")
+            }
+        else:
+            # Simple format - return as is
+            return progress_data
 
     # Check if job is completed
     zip_path = OUTPUT_DIR / f"{job_id}.zip"
