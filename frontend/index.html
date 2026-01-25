@@ -100,6 +100,92 @@
                     <ul id="fileListItems" class="bg-gray-50 rounded p-4 space-y-1"></ul>
                 </div>
 
+                <!-- Artifact Selection -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-3">
+                        Select Artifacts to Generate
+                    </label>
+
+                    <!-- Quick Selection Buttons -->
+                    <div class="mb-4 flex gap-2 flex-wrap">
+                        <button type="button" onclick="selectArtifactSet('business')" id="set-business"
+                                class="px-4 py-2 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 border-2 border-blue-300 text-sm font-medium">
+                            📊 Business (Recommended)
+                        </button>
+                        <button type="button" onclick="selectArtifactSet('minimal')" id="set-minimal"
+                                class="px-4 py-2 bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100 border border-gray-200 text-sm">
+                            📝 Minimal (PRD Only)
+                        </button>
+                        <button type="button" onclick="selectArtifactSet('development')" id="set-development"
+                                class="px-4 py-2 bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100 border border-gray-200 text-sm">
+                            💻 Development
+                        </button>
+                        <button type="button" onclick="selectArtifactSet('complete')" id="set-complete"
+                                class="px-4 py-2 bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100 border border-gray-200 text-sm">
+                            ✨ Complete (All)
+                        </button>
+                    </div>
+
+                    <!-- Individual Checkboxes -->
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="flex items-center space-x-2 cursor-pointer">
+                                <input type="checkbox" value="prd" checked class="artifact-checkbox rounded text-blue-600">
+                                <span class="text-sm">📝 PRD</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer">
+                                <input type="checkbox" value="capabilities" checked class="artifact-checkbox rounded text-blue-600">
+                                <span class="text-sm">🗺️ Capabilities</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer">
+                                <input type="checkbox" value="capability_cards" class="artifact-checkbox rounded text-blue-600">
+                                <span class="text-sm">🎴 Capability Cards</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer">
+                                <input type="checkbox" value="epics" class="artifact-checkbox rounded text-blue-600">
+                                <span class="text-sm">🎯 Epics</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer">
+                                <input type="checkbox" value="features" class="artifact-checkbox rounded text-blue-600">
+                                <span class="text-sm">✨ Features</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer">
+                                <input type="checkbox" value="user_stories" class="artifact-checkbox rounded text-blue-600">
+                                <span class="text-sm">👤 User Stories</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer">
+                                <input type="checkbox" value="lean_canvas" checked class="artifact-checkbox rounded text-blue-600">
+                                <span class="text-sm">📊 Lean Canvas</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <p class="text-xs text-gray-500 mt-2">
+                        ℹ️ Dependencies are automatically included. Selecting "Features" will also generate PRD and Epics.
+                    </p>
+                </div>
+
+                <!-- Output Format Selection -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Output Formats
+                    </label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="format_markdown" checked class="rounded text-blue-600">
+                            <span class="text-sm">📄 Markdown</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="format_json" checked class="rounded text-blue-600">
+                            <span class="text-sm">📊 JSON</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="format_html" checked class="rounded text-blue-600">
+                            <span class="text-sm">🌐 HTML Report</span>
+                        </label>
+                    </div>
+                </div>
+
                 <!-- Generate Button -->
                 <button
                     onclick="uploadAndGenerate()"
@@ -170,6 +256,42 @@
 
     <script>
         const API_URL = 'http://localhost:8000';
+
+        // Artifact set definitions
+        const ARTIFACT_SETS = {
+            'business': ['prd', 'capabilities', 'lean_canvas'],
+            'minimal': ['prd'],
+            'development': ['prd', 'capabilities', 'capability_cards', 'epics', 'features'],
+            'complete': ['prd', 'capabilities', 'capability_cards', 'epics', 'features', 'user_stories', 'lean_canvas']
+        };
+
+        function selectArtifactSet(setName) {
+            const artifacts = ARTIFACT_SETS[setName] || [];
+
+            // Uncheck all first
+            document.querySelectorAll('.artifact-checkbox').forEach(cb => {
+                cb.checked = false;
+            });
+
+            // Check selected set
+            artifacts.forEach(artifact => {
+                const checkbox = document.querySelector(`.artifact-checkbox[value="${artifact}"]`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            });
+
+            // Update button styles
+            document.querySelectorAll('[id^="set-"]').forEach(btn => {
+                btn.className = 'px-4 py-2 bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100 border border-gray-200 text-sm';
+            });
+            document.getElementById(`set-${setName}`).className = 'px-4 py-2 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 border-2 border-blue-300 text-sm font-medium';
+        }
+
+        // Initialize with business set (default)
+        window.addEventListener('DOMContentLoaded', () => {
+            selectArtifactSet('business');
+        });
 
         // Check API status on load
         async function checkAPIStatus() {
@@ -267,13 +389,32 @@
                 return;
             }
 
+            // Get selected artifacts
+            const selectedArtifacts = Array.from(document.querySelectorAll('.artifact-checkbox:checked'))
+                .map(cb => cb.value);
+
+            if (selectedArtifacts.length === 0) {
+                status.innerHTML = `
+                    <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
+                        Please select at least one artifact to generate.
+                    </div>
+                `;
+                return;
+            }
+
+            // Get output formats
+            const formats = [];
+            if (document.getElementById('format_markdown').checked) formats.push('markdown');
+            if (document.getElementById('format_json').checked) formats.push('json');
+            if (document.getElementById('format_html').checked) formats.push('html');
+
             button.disabled = true;
             status.innerHTML = `
                 <div class="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded flex items-center">
                     <div class="spinner mr-3"></div>
                     <div>
                         <div class="font-semibold">Uploading files...</div>
-                        <div class="text-sm">Please wait...</div>
+                        <div class="text-sm">Preparing to generate ${selectedArtifacts.length} artifact(s)...</div>
                     </div>
                 </div>
             `;
@@ -284,8 +425,9 @@
             });
 
             try {
-                // Start the generation job
-                const response = await fetch(`${API_URL}/api/generate`, {
+                // Start the generation job using selective endpoint
+                const url = `${API_URL}/api/generate-selective?artifacts=${selectedArtifacts.join(',')}&output_formats=${formats.join(',')}&use_cache=true`;
+                const response = await fetch(url, {
                     method: 'POST',
                     body: formData
                 });
