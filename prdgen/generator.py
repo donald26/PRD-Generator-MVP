@@ -6,6 +6,7 @@ from pathlib import Path
 from .config import GenerationConfig, as_dict
 from .model import LoadedModel, build_chat_input, generate_text
 from .prompts import (
+    context_assessment_prompt,
     corpus_summarize_prompt,
     prd_prompt,
     features_prompt,
@@ -18,6 +19,8 @@ from .prompts import (
 )
 from .utils import ensure_sections, strip_trailing_noise, validate_output
 from .ingest import IngestedDoc, format_corpus
+from .context_summary import parse_context_summary_markdown, save_context_summary_json
+from .prompt_templates import get_system_prompt
 from .capability_cards import extract_l1_names, ensure_cards_for_l1
 from .epics import ensure_epics_for_all_l1, add_epic_summary_header, extract_epic_ids
 from .features import add_feature_summary_header, ensure_features_for_epics, extract_feature_ids
@@ -27,12 +30,14 @@ from .dependencies import ArtifactDependencyResolver, ArtifactCache
 
 LOG = logging.getLogger("prdgen.generator")
 
-SYSTEM_SUMMARY = "You summarize multiple product documents faithfully. Do not hallucinate missing facts."
-SYSTEM_PRD = "You produce high-quality PRDs. Follow the outline and do not hallucinate missing facts."
-SYSTEM_FEATURES = "You produce structured feature lists derived strictly from the PRD and epics."
-SYSTEM_CAPS = "You produce capability maps derived strictly from the PRD."
-SYSTEM_CANVAS = "You produce Lean Canvas derived strictly from the PRD and capability map."
-SYSTEM_STORIES = "You produce detailed user stories with Gherkin acceptance criteria derived strictly from features."
+# System prompts now loaded from prompt_templates module for consistency and maintainability
+SYSTEM_CONTEXT = get_system_prompt("context")
+SYSTEM_SUMMARY = get_system_prompt("summary")
+SYSTEM_PRD = get_system_prompt("prd")
+SYSTEM_FEATURES = get_system_prompt("features")
+SYSTEM_CAPS = get_system_prompt("capabilities")
+SYSTEM_CANVAS = get_system_prompt("canvas")
+SYSTEM_STORIES = get_system_prompt("stories")
 
 def _run_step(
     loaded: LoadedModel,
@@ -139,6 +144,67 @@ class ArtifactGenerator:
             LOG.info(f"Saved {artifact_type.value} ({len(content)} chars) to {filename}")
         except Exception as e:
             LOG.error(f"Failed to save {artifact_type.value}: {e}")
+
+    def generate_context_summary(self) -> str:
+        """
+        NEW (Phase 1A): Generate Document Context Assessment.
+
+        This is the first stage that runs before any other artifact generation.
+        Produces structured context summary with source traceability.
+        """
+        artifact_type = ArtifactType.CONTEXT_SUMMARY
+
+        # Skip if disabled
+        if not self.cfg.enable_context_summary:
+            LOG.info(f"⊘ Context summary disabled, skipping")
+            return ""
+
+        # Check cache first
+        if self.cache.has(artifact_type):
+            LOG.info(f"✓ Using cached {artifact_type.value}")
+            self._report_progress(artifact_type, "completed", 100, "Using cached version")
+            self.meta["cache_hits"] += 1
+            return self.cache.get(artifact_type)
+
+        LOG.info("=" * 70)
+        LOG.info(f"GENERATING: {artifact_type.value} (PHASE 1A)")
+        LOG.info(f"Processing {len(self.docs)} input documents")
+        LOG.info("=" * 70)
+
+        self.meta["cache_misses"] += 1
+        self._report_progress(artifact_type, "processing", 0, "Analyzing document context...")
+
+        t0 = time.time()
+        context_md = _run_step(
+            self.loaded,
+            SYSTEM_CONTEXT,
+            context_assessment_prompt(self.corpus),
+            self.cfg,
+            max_new_tokens=min(self.cfg.max_new_tokens, 1200),
+            temperature=max(self.cfg.temperature - 0.1, 0.3),
+            step_name="context_summary",
+        )
+        elapsed = round(time.time() - t0, 3)
+        self.meta["timings"]["context_summary_seconds"] = elapsed
+
+        # Cache and save markdown
+        self.cache.set(artifact_type, context_md)
+        self._save_artifact(artifact_type, context_md)
+
+        # Also generate and save JSON version
+        if self.cfg.output_dir:
+            try:
+                context_dict = parse_context_summary_markdown(context_md)
+                json_path = Path(self.cfg.output_dir) / "context_summary.json"
+                save_context_summary_json(context_dict, json_path)
+                LOG.info(f"Saved context summary JSON to {json_path.name}")
+            except Exception as e:
+                LOG.warning(f"Failed to generate context_summary.json: {e}")
+
+        self._report_progress(artifact_type, "completed", 100, f"Completed in {elapsed}s")
+        LOG.info(f"✓ {artifact_type.value} complete: {len(context_md)} chars in {elapsed}s")
+
+        return context_md
 
     def generate_corpus_summary(self) -> str:
         """Generate corpus summary (always required)"""
@@ -494,16 +560,72 @@ class ArtifactGenerator:
         """
         Generate selected artifacts (with automatic dependency resolution).
 
+        Implements two-step workflow:
+        1. Document Context Assessment (if enabled)
+        2. Intelligent Artifact Recommendation (if enabled)
+
         Returns:
             Dict mapping artifact_type -> content (only explicitly selected artifacts)
         """
-        # Determine which artifacts to generate
-        if self.cfg.selected_artifacts:
-            # Convert string names to enum
+        # STEP 1: Always generate context summary first (if enabled)
+        context_summary_content = ""
+        if self.cfg.enable_context_summary:
+            LOG.info("=" * 70)
+            LOG.info("STEP 1: Document Context Assessment")
+            LOG.info("=" * 70)
+            context_summary_content = self.generate_context_summary()
+
+        # STEP 2: Intelligent artifact recommendation (if enabled)
+        selected = None
+
+        # Priority 1: User explicit override (generate_only)
+        if self.cfg.generate_only:
+            LOG.info("=" * 70)
+            LOG.info("Using user-specified artifacts (generate_only)")
+            LOG.info("=" * 70)
+            selected = validate_artifact_names(self.cfg.generate_only)
+            self.meta["artifact_selection"] = "user_override"
+
+        # Priority 2: Intelligent recommendation based on context analysis
+        elif self.cfg.enable_recommendation and context_summary_content:
+            LOG.info("=" * 70)
+            LOG.info("STEP 2: Intelligent Artifact Recommendation")
+            LOG.info("=" * 70)
+            from .recommendation import generate_recommendations
+
+            # Generate recommendations
+            recommendations = generate_recommendations(
+                context_summary_content,
+                Path(self.cfg.output_dir) if self.cfg.output_dir else Path(".")
+            )
+
+            # Use recommended artifacts
+            recommended_names = {rec.artifact_type for rec in recommendations if rec.recommended}
+            selected = validate_artifact_names(recommended_names)
+
+            LOG.info(f"Recommended artifacts: {[a.value for a in selected]}")
+            self.meta["artifact_selection"] = "recommendation"
+            self.meta["recommendations"] = [
+                {
+                    "artifact": rec.artifact_type,
+                    "confidence": rec.confidence,
+                    "rationale": rec.rationale,
+                    "recommended": rec.recommended
+                }
+                for rec in recommendations
+            ]
+
+        # Priority 3: Explicit selection or default set
+        elif self.cfg.selected_artifacts:
             selected = validate_artifact_names(self.cfg.selected_artifacts)
+            self.meta["artifact_selection"] = "explicit"
         else:
-            # Use default set
             selected = get_artifact_set(self.cfg.default_set)
+            self.meta["artifact_selection"] = "default_set"
+
+        # Add CONTEXT_SUMMARY to selected if it was generated
+        if self.cfg.enable_context_summary and ArtifactType.CONTEXT_SUMMARY not in selected:
+            selected.add(ArtifactType.CONTEXT_SUMMARY)
 
         # Resolve dependencies (but only return selected ones)
         to_generate = ArtifactDependencyResolver.resolve(selected)
@@ -517,6 +639,7 @@ class ArtifactGenerator:
 
         # Map artifact types to generator methods
         generator_map = {
+            ArtifactType.CONTEXT_SUMMARY: self.generate_context_summary,
             ArtifactType.CORPUS_SUMMARY: self.generate_corpus_summary,
             ArtifactType.PRD: self.generate_prd,
             ArtifactType.CAPABILITIES: self.generate_capabilities,

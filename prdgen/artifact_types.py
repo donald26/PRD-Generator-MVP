@@ -6,6 +6,7 @@ from typing import Set, Dict
 
 class ArtifactType(str, Enum):
     """Enumeration of all artifact types that can be generated"""
+    CONTEXT_SUMMARY = "context_summary"  # NEW: First-stage document context assessment
     CORPUS_SUMMARY = "corpus_summary"
     PRD = "prd"
     CAPABILITIES = "capabilities"
@@ -49,6 +50,7 @@ ARTIFACT_SETS: Dict[str, Set[ArtifactType]] = {
 
 # Human-readable names for UI display
 ARTIFACT_NAMES: Dict[ArtifactType, str] = {
+    ArtifactType.CONTEXT_SUMMARY: "Document Context Assessment",
     ArtifactType.CORPUS_SUMMARY: "Corpus Summary",
     ArtifactType.PRD: "Product Requirements Document",
     ArtifactType.CAPABILITIES: "Capability Map",
@@ -61,6 +63,7 @@ ARTIFACT_NAMES: Dict[ArtifactType, str] = {
 
 # File names for each artifact
 ARTIFACT_FILENAMES: Dict[ArtifactType, str] = {
+    ArtifactType.CONTEXT_SUMMARY: "context_summary.md",
     ArtifactType.CORPUS_SUMMARY: "corpus_summary.md",
     ArtifactType.PRD: "prd.md",
     ArtifactType.CAPABILITIES: "capabilities.md",

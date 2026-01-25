@@ -15,6 +15,7 @@ class ArtifactDependencyResolver:
 
     # Dependency graph: artifact -> list of required predecessors
     DEPENDENCIES: Dict[ArtifactType, List[ArtifactType]] = {
+        ArtifactType.CONTEXT_SUMMARY: [],  # NEW: First-stage, no dependencies
         ArtifactType.CORPUS_SUMMARY: [],
         ArtifactType.PRD: [ArtifactType.CORPUS_SUMMARY],
         ArtifactType.CAPABILITIES: [
@@ -52,6 +53,7 @@ class ArtifactDependencyResolver:
 
     # Canonical generation order (topologically sorted)
     GENERATION_ORDER: List[ArtifactType] = [
+        ArtifactType.CONTEXT_SUMMARY,  # NEW: First-stage document assessment
         ArtifactType.CORPUS_SUMMARY,
         ArtifactType.PRD,
         ArtifactType.CAPABILITIES,

@@ -16,8 +16,12 @@ class GenerationConfig:
     write_debug: bool = True
 
     # NEW: Artifact selection
-    selected_artifacts: Optional[Set[str]] = None  # None = use default_set
+    selected_artifacts: Optional[Set[str]] = None  # None = use default_set or recommendation
     default_set: str = "business"  # "business", "minimal", "development", "complete"
+
+    # NEW: Artifact recommendation (Phase 2)
+    enable_recommendation: bool = True  # Use intelligent recommendation based on context analysis
+    generate_only: Optional[Set[str]] = None  # User override: explicit list of artifacts to generate (bypasses recommendation)
 
     # NEW: Incremental saving
     save_incremental: bool = True  # Save each artifact as it completes
@@ -29,6 +33,13 @@ class GenerationConfig:
 
     # NEW: Output formats
     output_formats: Set[str] = field(default_factory=lambda: {"markdown", "json", "html"})
+
+    # NEW: Context Summary (Phase 1A)
+    enable_context_summary: bool = True  # Generate structured document context assessment first
+    include_source_traceability: bool = True  # Include file-level source mapping
+
+    # NEW: Template Management
+    template_dir: Optional[Path] = None  # Custom template directory (None = use default templates/)
 
 def as_dict(cfg: GenerationConfig) -> Dict[str, Any]:
     return {

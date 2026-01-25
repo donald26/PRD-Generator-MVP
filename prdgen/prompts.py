@@ -1,3 +1,5 @@
+from .prompt_templates import get_template_structure
+
 PRD_OUTLINE = [
     "Overview",
     "Problem Statement",
@@ -11,6 +13,96 @@ PRD_OUTLINE = [
     "Assumptions & Open Questions",
     "Out of Scope",
 ]
+
+def context_assessment_prompt(corpus: str) -> str:
+    """
+    NEW: First-stage document context assessment prompt.
+    Extracts structured information from input documents before any artifact generation.
+    """
+    return f"""You are a Senior Product Analyst conducting a comprehensive document context assessment.
+
+Your task is to analyze the provided documents and extract a structured summary of the product context.
+
+**CRITICAL RULES:**
+- Extract ONLY information explicitly stated or clearly implied in the documents
+- Do NOT invent, assume, or hallucinate missing information
+- If information is missing for a section, state "Not specified in documents"
+- If documents conflict, note the conflict explicitly
+- For source traceability, reference the file names where information was found
+
+**OUTPUT FORMAT:**
+Produce a structured assessment with these EXACT sections (in this order):
+
+## Problem / Opportunity
+[Describe the core problem(s) or business opportunity the documents address. 2-4 sentences.]
+
+## Goals
+[List explicit objectives mentioned in the documents]
+- Goal 1
+- Goal 2
+- ...
+
+## Non-Goals
+[List explicit exclusions or out-of-scope items mentioned]
+- Non-goal 1
+- Non-goal 2
+- ...
+[If none specified, state: "Not explicitly defined in documents"]
+
+## Target Personas / Users
+[List user types, personas, or stakeholders mentioned]
+- Persona 1: [Brief description]
+- Persona 2: [Brief description]
+- ...
+
+## Key Functional Requirements
+[High-level capabilities the product must provide - NOT user stories, just capabilities]
+- Requirement 1
+- Requirement 2
+- ...
+
+## Constraints & Assumptions
+**Technical Constraints:**
+- [List technical constraints if mentioned]
+
+**Business Constraints:**
+- [List business constraints if mentioned]
+
+**Assumptions:**
+- [List key assumptions made in the documents]
+
+[If none for a category, state: "None specified"]
+
+## Risks, Gaps, and Open Questions
+**Risks:**
+- [Potential risks mentioned or implied]
+
+**Information Gaps:**
+- [Missing information that should be clarified]
+
+**Open Questions:**
+- [Unresolved questions or ambiguities in the documents]
+
+**Conflicts:**
+- [Any contradictory information between documents]
+
+## Source Traceability
+[For each major section above, indicate which input file(s) contributed information]
+
+**Problem/Opportunity:** [file1.docx, file2.md]
+**Goals:** [file1.docx]
+**Personas:** [file3.txt]
+**Requirements:** [file1.docx, file4.md]
+**Constraints:** [file2.md]
+[etc.]
+
+---
+
+DOCUMENTS:
+{corpus}
+
+Return ONLY the structured assessment in Markdown format using the sections above.
+"""
 
 def corpus_summarize_prompt(corpus: str) -> str:
     return f"""You are a Staff Product Manager. You are given multiple documents (meeting notes, docs, emails, etc.) about a product idea.
@@ -124,45 +216,39 @@ Return ONLY the capability cards Markdown, with this structure:
 """
 
 def features_prompt(prd_markdown: str, epics_md: str) -> str:
+    # Get feature template structure
+    template_structure = get_template_structure("feature")
+
     return f"""You are a senior Product Manager and Tech Lead creating detailed features from epics.
 
 From the PRD and Epics below, create a structured feature list organized by epic.
 
-For each Epic, generate 3-8 features that deliver the epic's capabilities.
+IMPORTANT: Follow the Feature Template structure provided below.
 
-For each feature, include these sections (in this exact order):
+{template_structure}
 
-**Feature ID**: F-XXX (sequential numbering starting from F-001, global across all epics)
-**Epic**: EP-XXX ([Epic Name])
-**Feature Name**: [Clear, concise name]
-
-**Description**
-[2-3 sentences explaining what this feature does and the value it provides]
-
-**Primary Persona**: [Main user of this feature]
-**Secondary Personas**: [Additional users who benefit]
-**Priority**: P0/P1/P2 (inherit or refine from epic priority)
-**Complexity**: High / Medium / Low
-
-**Acceptance Criteria**
-- [ ] [Specific, testable criterion 1]
-- [ ] [Specific, testable criterion 2]
-- [ ] [Specific, testable criterion 3]
-- [ ] [Additional criteria as needed, 3-6 total]
-
-**Dependencies**
-[List feature IDs this depends on, or external dependencies. Use "None" if independent]
-
-**Risks**
-[List potential risks or challenges in implementing this feature]
+Guidelines:
+- Feature Name: Clear, user-centric name
+- Feature Description: What the feature does and why it exists
+- Associated Epic: Link to parent epic (EP-XXX)
+- User Value Statement: "This feature enables <persona> to <action> so that <outcome>"
+- Functional Requirements: Deterministic, testable behaviors (3-6 items)
+- Non-Functional Requirements: Latency, throughput, security, auditability
+- User Interaction/Flow: High-level user or system flow
+- Edge Cases & Exceptions: Failure scenarios and retries
+- Dependencies: APIs, data sources, third-party systems (use "None" if independent)
+- Acceptance Criteria: Feature-level Definition of Done (specific, testable)
+- Telemetry & Observability: Logs, metrics, and alerts
 
 Hard rules:
-- Organize features by Epic (group under each epic)
+- Generate 3-8 features per epic that deliver the epic's capabilities
 - Do NOT invent features beyond what's implied in the PRD and Epic scope
 - Each feature must clearly contribute to its parent epic's objectives
 - Feature IDs are globally sequential (F-001, F-002, etc.), not per-epic
-- Acceptance criteria must be specific, measurable, and testable
-- Priority should align with epic priority unless there's a good reason to differ
+- All requirements must be deterministic and testable
+- Base functional requirements strictly on PRD and epic scope
+
+INPUT DOCUMENTS:
 
 PRD:
 {prd_markdown}
@@ -170,12 +256,15 @@ PRD:
 EPICS:
 {epics_md}
 
-Return ONLY the feature list in Markdown. Use this structure:
+Return ONLY the feature list in Markdown following the template structure.
+Organize features by Epic. Each feature should be a complete, self-contained section.
+
+Use this format:
 
 # Product Features
 
 **Total Features**: XX
-**By Epic**: EP-001: X features | EP-002: X features | EP-003: X features
+**By Epic**: EP-001: X features | EP-002: X features
 
 ---
 
@@ -183,28 +272,7 @@ Return ONLY the feature list in Markdown. Use this structure:
 
 ### Feature F-001: [Feature Name]
 
-**Feature ID**: F-001
-**Epic**: EP-001 ([Epic Name])
-**Feature Name**: [Name]
-
-**Description**
-[Description]
-
-**Primary Persona**: [Persona]
-**Secondary Personas**: [Personas]
-**Priority**: P0
-**Complexity**: High
-
-**Acceptance Criteria**
-- [ ] [Criterion 1]
-- [ ] [Criterion 2]
-- [ ] [Criterion 3]
-
-**Dependencies**
-[Dependencies or "None"]
-
-**Risks**
-[Risks]
+[Follow template structure for each feature]
 
 ---
 
@@ -213,59 +281,45 @@ Return ONLY the feature list in Markdown. Use this structure:
 """
 
 def user_stories_prompt(prd_markdown: str, epics_md: str, features_md: str) -> str:
+    # Get user story template structure
+    template_structure = get_template_structure("user_story")
+
     return f"""You are a Product Manager and Scrum Master creating detailed user stories for development teams.
 
 From the PRD, Epics, and Features below, generate user stories organized by epic and feature.
 
-For each Feature, create 3-6 user stories that represent specific user-facing scenarios.
+IMPORTANT: Follow the User Story Template structure provided below.
 
-For each user story, include these sections (in this exact order):
+{template_structure}
 
-**Story ID**: US-XXX (sequential numbering starting from US-001, global across all features)
-**Feature**: F-XXX ([Feature Name])
-**Epic**: EP-XXX ([Epic Name])
-**Priority**: P0/P1/P2 (inherit from feature)
-**Story Points**: 1/2/3/5/8/13 (Fibonacci scale, estimate based on complexity)
-**Persona**: [Specific persona who benefits from this story]
-
-**User Story**
-As a [persona],
-I want to [action],
-So that [benefit].
-
-**Acceptance Criteria**
-- [ ] Given [context], When [action], Then [outcome]
-- [ ] Given [context], When [action], Then [outcome]
-- [ ] Given [context], When [action], Then [outcome]
-[3-5 criteria per story, using Gherkin Given/When/Then format]
-
-**Technical Notes**
-- [API endpoints, data models, integration points]
-- [Any technical considerations for developers]
-
-**Dependencies**
-[List story IDs this depends on, or state "None"]
-
-**Definition of Done**
-- [ ] Code complete and reviewed
-- [ ] Unit tests passing (>80% coverage)
-- [ ] Integration tests passing
-- [ ] Documentation updated
-- [ ] Acceptance criteria validated
-
-Hard rules:
-- Organize stories by Epic, then Feature (hierarchical structure)
-- Do NOT invent functionality beyond what's in the features
-- Story IDs are globally sequential (US-001, US-002, etc.)
-- Use standard "As a... I want... So that..." format
-- Acceptance criteria MUST use Gherkin Given/When/Then format
-- Story points follow Fibonacci: 1, 2, 3, 5, 8, 13
-- Estimate story points based on:
+Guidelines:
+- Story ID: US-XXX (sequential numbering starting from US-001, global across all features)
+- Title: Action-oriented and specific
+- As a: Specific persona from the feature
+- I want to: Specific action or capability
+- So that: Clear value or outcome
+- Detailed Description: Clarifies intent without unnecessary solution bias
+- Acceptance Criteria: Use Gherkin format - Given <context>, When <action>, Then <expected outcome> (3-5 criteria per story)
+- Functional Notes: API behavior, validation rules, data transformations
+- Non-Functional Requirements: Performance, security, compliance constraints
+- Dependencies: List story IDs, features, or external systems this depends on (use "None" if independent)
+- Definition of Done: Code complete, tests written, documentation updated, telemetry enabled
+- Story Points/Complexity: Use Fibonacci scale (1, 2, 3, 5, 8, 13) based on:
   * Complexity (low=1-2, medium=3-5, high=8-13)
   * Number of acceptance criteria
   * Dependencies on other stories
+
+Hard rules:
+- Create 3-6 user stories per feature that represent specific user-facing scenarios
+- Do NOT invent functionality beyond what's defined in the features
+- Story IDs are globally sequential (US-001, US-002, etc.)
+- Use standard "As a... I want... So that..." format
+- Acceptance criteria MUST use Gherkin Given/When/Then format
 - Each story should be independently deliverable and testable
 - Technical notes should guide developers without being too prescriptive
+- Base all content strictly on provided PRD, epics, and features
+
+INPUT DOCUMENTS:
 
 PRD:
 {prd_markdown}
@@ -276,7 +330,11 @@ EPICS:
 FEATURES:
 {features_md}
 
-Return ONLY the user stories in Markdown. Use this structure:
+Return ONLY the user stories in Markdown following the template structure.
+Organize stories by Epic, then Feature (hierarchical structure).
+Each story should be a complete, self-contained section.
+
+Use this format:
 
 # User Stories
 
@@ -292,35 +350,7 @@ Return ONLY the user stories in Markdown. Use this structure:
 
 #### US-001: [Story Title]
 
-**Story ID**: US-001
-**Feature**: F-001 ([Feature Name])
-**Epic**: EP-001 ([Epic Name])
-**Priority**: P0
-**Story Points**: 5
-**Persona**: [Persona]
-
-**User Story**
-As a [persona],
-I want to [action],
-So that [benefit].
-
-**Acceptance Criteria**
-- [ ] Given [context], When [action], Then [outcome]
-- [ ] Given [context], When [action], Then [outcome]
-- [ ] Given [context], When [action], Then [outcome]
-
-**Technical Notes**
-- [Technical details]
-
-**Dependencies**
-- None
-
-**Definition of Done**
-- [ ] Code complete and reviewed
-- [ ] Unit tests passing (>80% coverage)
-- [ ] Integration tests passing
-- [ ] Documentation updated
-- [ ] Acceptance criteria validated
+[Follow template structure for each story]
 
 ---
 
@@ -360,51 +390,40 @@ Return ONLY the Lean Canvas in Markdown.
 """
 
 def epics_prompt(prd_markdown: str, capabilities_md: str, cards_md: str) -> str:
+    # Get epic template structure
+    template_structure = get_template_structure("epic")
+
     return f"""You are a Product Manager and Technical Architect creating high-level epics for development planning.
 
 From the inputs below, generate a structured list of product epics. Each epic should represent a major body of work that delivers one L1 capability.
 
-For each L1 capability in the capability map, create ONE epic with these sections (in this exact order):
+IMPORTANT: Follow the Epic Template structure provided below.
 
-**Epic ID**: EP-XXX (sequential numbering starting from EP-001)
-**Capability**: [L1 Capability Name - exact name from capability map]
-**Domain**: [L0 Domain Name from capability map]
-**Priority**: P0 (must-have) / P1 (should-have) / P2 (nice-to-have) - infer from PRD Goals and requirements
-**Complexity**: High / Medium / Low - based on scope and L2 count
+{template_structure}
 
-**Description**
-[2-3 sentences explaining what this epic delivers - use capability card description]
-
-**Business Objective**
-[Clear statement of business value - use capability card objective]
-
-**Target Personas**
-- Primary: [from capability card]
-- Secondary: [from capability card]
-
-**Success Criteria**
-[Specific, measurable criteria - use capability card Success Signals]
-
-**Scope (Capabilities)**
-[List all L2 sub-capabilities from the capability map that fall under this L1]
-
-**Dependencies**
-[List other epics this depends on, or state "None" if independent]
-
-**Acceptance Criteria**
-[3-6 specific, testable criteria that define "done"]
-
-**Out of Scope**
-[Explicitly state what this epic does NOT include]
+Guidelines:
+- Create exactly ONE epic per L1 capability from the capability map
+- Use exact L1 capability names from the capability map
+- Epic Name should be outcome-oriented (verb + object)
+- Epic Summary should describe the business problem and intended outcome (1-2 paragraphs)
+- Business Objective should state measurable business outcomes
+- In Scope: Included workflows and capabilities from the capability map
+- Out of Scope: Explicit exclusions
+- Primary Personas: Use personas from capability cards
+- Success Metrics/KPIs: Adoption, efficiency, revenue/risk/quality signals from capability cards
+- Key Capabilities Enabled: Reference L2/L3 capabilities from the capability map
+- Dependencies: Platform, data, external teams, regulatory (use "None" if independent)
+- Non-Functional Requirements: Performance, security, availability, compliance
+- Assumptions & Constraints: Known assumptions and constraints from PRD
+- Risks & Mitigations: Identified risks and mitigation strategies
 
 Hard rules:
-- Create exactly ONE epic per L1 capability
-- Use exact L1 capability names from the capability map
 - Do NOT invent capabilities not in the inputs
 - Infer priority from PRD Goals and Functional Requirements sections
-- Keep each epic focused on delivering one L1 capability
-- Ensure dependencies reference other epic IDs (EP-XXX format)
-- Make acceptance criteria specific and measurable
+- Make metrics and success criteria specific and measurable
+- Base all content on provided PRD, capability map, and capability cards
+
+INPUT DOCUMENTS:
 
 CAPABILITY MAP:
 {capabilities_md}
@@ -415,19 +434,6 @@ CAPABILITY CARDS:
 PRD:
 {prd_markdown}
 
-Return ONLY the epics in Markdown format. Use this structure:
-
-# Product Epics
-
-## [L1 Capability Name 1]
-
-**Epic ID**: EP-001
-...
-
----
-
-## [L1 Capability Name 2]
-
-**Epic ID**: EP-002
-...
+Return ONLY the epics in Markdown format following the template structure.
+Each epic should be a complete, self-contained section.
 """
