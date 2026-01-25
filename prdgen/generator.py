@@ -16,7 +16,7 @@ from .prompts import (
     user_stories_prompt,
     PRD_OUTLINE,
 )
-from .utils import ensure_sections, strip_trailing_noise
+from .utils import ensure_sections, strip_trailing_noise, validate_output
 from .ingest import IngestedDoc, format_corpus
 from .capability_cards import extract_l1_names, ensure_cards_for_l1
 from .epics import ensure_epics_for_all_l1, add_epic_summary_header, extract_epic_ids
@@ -41,8 +41,14 @@ def _run_step(
     cfg: GenerationConfig,
     max_new_tokens: int,
     temperature: float,
+    step_name: str = "generation",
 ) -> str:
+    LOG.info(f"▶ Starting: {step_name}")
+    LOG.debug(f"  Input prompt: {len(user_prompt)} chars, max_tokens={max_new_tokens}, temp={temperature}")
+
     prompt = build_chat_input(loaded.tokenizer, system, user_prompt)
+    LOG.debug(f"  Full prompt: {len(prompt)} chars")
+
     out = generate_text(
         loaded,
         prompt,
@@ -51,6 +57,11 @@ def _run_step(
         top_p=cfg.top_p,
         repetition_penalty=cfg.repetition_penalty,
     )
+
+    # Validate and clean output
+    out = validate_output(out, step_name)
+
+    LOG.info(f"✓ Completed: {step_name} ({len(out)} chars)")
     return strip_trailing_noise(out)
 
 
@@ -135,10 +146,14 @@ class ArtifactGenerator:
 
         # Check cache first
         if self.cache.has(artifact_type):
-            LOG.info(f"Using cached {artifact_type.value}")
+            LOG.info(f"✓ Using cached {artifact_type.value}")
             self._report_progress(artifact_type, "completed", 100, "Using cached version")
             self.meta["cache_hits"] += 1
             return self.cache.get(artifact_type)
+
+        LOG.info("=" * 70)
+        LOG.info(f"GENERATING: {artifact_type.value}")
+        LOG.info("=" * 70)
 
         self.meta["cache_misses"] += 1
         self._report_progress(artifact_type, "processing", 0, "Generating corpus summary...")
@@ -151,6 +166,7 @@ class ArtifactGenerator:
             self.cfg,
             max_new_tokens=min(self.cfg.max_new_tokens, 900),
             temperature=max(self.cfg.temperature - 0.1, 0.3),
+            step_name="corpus_summary",
         )
         elapsed = round(time.time() - t0, 3)
         self.meta["timings"]["corpus_summary_seconds"] = elapsed
@@ -160,6 +176,7 @@ class ArtifactGenerator:
         self._save_artifact(artifact_type, summary_md)
         self._report_progress(artifact_type, "completed", 100, f"Completed in {elapsed}s")
 
+        LOG.info(f"✓ {artifact_type.value} complete: {len(summary_md)} chars in {elapsed}s")
         return summary_md
 
     def generate_prd(self) -> str:
@@ -168,13 +185,18 @@ class ArtifactGenerator:
 
         # Check cache
         if self.cache.has(artifact_type):
-            LOG.info(f"Using cached {artifact_type.value}")
+            LOG.info(f"✓ Using cached {artifact_type.value}")
             self._report_progress(artifact_type, "completed", 100, "Using cached version")
             self.meta["cache_hits"] += 1
             return self.cache.get(artifact_type)
 
         # Ensure dependency
         summary_md = self.generate_corpus_summary()
+
+        LOG.info("=" * 70)
+        LOG.info(f"GENERATING: {artifact_type.value}")
+        LOG.info(f"Dependencies: corpus_summary")
+        LOG.info("=" * 70)
 
         self.meta["cache_misses"] += 1
         self._report_progress(artifact_type, "processing", 0, "Generating PRD...")
@@ -187,6 +209,7 @@ class ArtifactGenerator:
             self.cfg,
             max_new_tokens=self.cfg.max_new_tokens,
             temperature=self.cfg.temperature,
+            step_name="prd",
         )
         prd_md = ensure_sections(prd_md, PRD_OUTLINE)
         elapsed = round(time.time() - t0, 3)
@@ -196,6 +219,7 @@ class ArtifactGenerator:
         self._save_artifact(artifact_type, prd_md)
         self._report_progress(artifact_type, "completed", 100, f"Completed in {elapsed}s")
 
+        LOG.info(f"✓ {artifact_type.value} complete: {len(prd_md)} chars in {elapsed}s")
         return prd_md
 
     def generate_capabilities(self) -> str:
@@ -203,13 +227,18 @@ class ArtifactGenerator:
         artifact_type = ArtifactType.CAPABILITIES
 
         if self.cache.has(artifact_type):
-            LOG.info(f"Using cached {artifact_type.value}")
+            LOG.info(f"✓ Using cached {artifact_type.value}")
             self._report_progress(artifact_type, "completed", 100, "Using cached version")
             self.meta["cache_hits"] += 1
             return self.cache.get(artifact_type)
 
         # Dependencies
         prd_md = self.generate_prd()
+
+        LOG.info("=" * 70)
+        LOG.info(f"GENERATING: {artifact_type.value}")
+        LOG.info(f"Dependencies: prd")
+        LOG.info("=" * 70)
 
         self.meta["cache_misses"] += 1
         self._report_progress(artifact_type, "processing", 0, "Generating capability map...")
@@ -222,6 +251,7 @@ class ArtifactGenerator:
             self.cfg,
             max_new_tokens=min(self.cfg.max_new_tokens, 900),
             temperature=max(self.cfg.temperature - 0.2, 0.3),
+            step_name="capabilities",
         )
         elapsed = round(time.time() - t0, 3)
         self.meta["timings"]["capabilities_seconds"] = elapsed
@@ -230,6 +260,7 @@ class ArtifactGenerator:
         self._save_artifact(artifact_type, caps_md)
         self._report_progress(artifact_type, "completed", 100, f"Completed in {elapsed}s")
 
+        LOG.info(f"✓ {artifact_type.value} complete: {len(caps_md)} chars in {elapsed}s")
         return caps_md
 
     def generate_capability_cards(self) -> str:
@@ -237,7 +268,7 @@ class ArtifactGenerator:
         artifact_type = ArtifactType.CAPABILITY_CARDS
 
         if self.cache.has(artifact_type):
-            LOG.info(f"Using cached {artifact_type.value}")
+            LOG.info(f"✓ Using cached {artifact_type.value}")
             self._report_progress(artifact_type, "completed", 100, "Using cached version")
             self.meta["cache_hits"] += 1
             return self.cache.get(artifact_type)
@@ -246,11 +277,17 @@ class ArtifactGenerator:
         prd_md = self.generate_prd()
         caps_md = self.generate_capabilities()
 
+        LOG.info("=" * 70)
+        LOG.info(f"GENERATING: {artifact_type.value}")
+        LOG.info(f"Dependencies: prd, capabilities")
+        LOG.info("=" * 70)
+
         self.meta["cache_misses"] += 1
         self._report_progress(artifact_type, "processing", 0, "Generating capability cards...")
 
         t0 = time.time()
         l1_names = extract_l1_names(caps_md)
+        LOG.info(f"  Found {len(l1_names)} L1 capabilities")
         cards_md = _run_step(
             self.loaded,
             SYSTEM_CAPS,
@@ -258,6 +295,7 @@ class ArtifactGenerator:
             self.cfg,
             max_new_tokens=900,
             temperature=max(self.cfg.temperature - 0.2, 0.3),
+            step_name="capability_cards",
         )
         cards_md = ensure_cards_for_l1(cards_md, l1_names)
         elapsed = round(time.time() - t0, 3)
@@ -267,6 +305,7 @@ class ArtifactGenerator:
         self._save_artifact(artifact_type, cards_md)
         self._report_progress(artifact_type, "completed", 100, f"Completed in {elapsed}s")
 
+        LOG.info(f"✓ {artifact_type.value} complete: {len(cards_md)} chars in {elapsed}s")
         return cards_md
 
     def generate_epics(self) -> str:
@@ -274,7 +313,7 @@ class ArtifactGenerator:
         artifact_type = ArtifactType.EPICS
 
         if self.cache.has(artifact_type):
-            LOG.info(f"Using cached {artifact_type.value}")
+            LOG.info(f"✓ Using cached {artifact_type.value}")
             self._report_progress(artifact_type, "completed", 100, "Using cached version")
             self.meta["cache_hits"] += 1
             return self.cache.get(artifact_type)
@@ -284,11 +323,17 @@ class ArtifactGenerator:
         caps_md = self.generate_capabilities()
         cards_md = self.generate_capability_cards()
 
+        LOG.info("=" * 70)
+        LOG.info(f"GENERATING: {artifact_type.value}")
+        LOG.info(f"Dependencies: prd, capabilities, capability_cards")
+        LOG.info("=" * 70)
+
         self.meta["cache_misses"] += 1
         self._report_progress(artifact_type, "processing", 0, "Generating epics...")
 
         t0 = time.time()
         l1_names = extract_l1_names(caps_md)
+        LOG.info(f"  Creating epics for {len(l1_names)} L1 capabilities")
         epics_md = _run_step(
             self.loaded,
             SYSTEM_CAPS,
@@ -296,6 +341,7 @@ class ArtifactGenerator:
             self.cfg,
             max_new_tokens=1200,
             temperature=max(self.cfg.temperature - 0.2, 0.3),
+            step_name="epics",
         )
         epics_md = ensure_epics_for_all_l1(epics_md, l1_names)
         epics_md = add_epic_summary_header(epics_md)
@@ -306,6 +352,7 @@ class ArtifactGenerator:
         self._save_artifact(artifact_type, epics_md)
         self._report_progress(artifact_type, "completed", 100, f"Completed in {elapsed}s")
 
+        LOG.info(f"✓ {artifact_type.value} complete: {len(epics_md)} chars in {elapsed}s")
         return epics_md
 
     def generate_features(self) -> str:
@@ -313,7 +360,7 @@ class ArtifactGenerator:
         artifact_type = ArtifactType.FEATURES
 
         if self.cache.has(artifact_type):
-            LOG.info(f"Using cached {artifact_type.value}")
+            LOG.info(f"✓ Using cached {artifact_type.value}")
             self._report_progress(artifact_type, "completed", 100, "Using cached version")
             self.meta["cache_hits"] += 1
             return self.cache.get(artifact_type)
@@ -322,10 +369,17 @@ class ArtifactGenerator:
         prd_md = self.generate_prd()
         epics_md = self.generate_epics()
 
+        LOG.info("=" * 70)
+        LOG.info(f"GENERATING: {artifact_type.value}")
+        LOG.info(f"Dependencies: prd, epics")
+        LOG.info("=" * 70)
+
         self.meta["cache_misses"] += 1
         self._report_progress(artifact_type, "processing", 0, "Generating features...")
 
         t0 = time.time()
+        epic_ids = extract_epic_ids(epics_md)
+        LOG.info(f"  Creating features for {len(epic_ids)} epics")
         features_md = _run_step(
             self.loaded,
             SYSTEM_FEATURES,
@@ -333,8 +387,8 @@ class ArtifactGenerator:
             self.cfg,
             max_new_tokens=1400,
             temperature=max(self.cfg.temperature - 0.1, 0.2),
+            step_name="features",
         )
-        epic_ids = extract_epic_ids(epics_md)
         features_md = ensure_features_for_epics(features_md, epic_ids)
         features_md = add_feature_summary_header(features_md, epics_md)
         elapsed = round(time.time() - t0, 3)
@@ -344,6 +398,7 @@ class ArtifactGenerator:
         self._save_artifact(artifact_type, features_md)
         self._report_progress(artifact_type, "completed", 100, f"Completed in {elapsed}s")
 
+        LOG.info(f"✓ {artifact_type.value} complete: {len(features_md)} chars in {elapsed}s")
         return features_md
 
     def generate_user_stories(self) -> str:
@@ -351,7 +406,7 @@ class ArtifactGenerator:
         artifact_type = ArtifactType.USER_STORIES
 
         if self.cache.has(artifact_type):
-            LOG.info(f"Using cached {artifact_type.value}")
+            LOG.info(f"✓ Using cached {artifact_type.value}")
             self._report_progress(artifact_type, "completed", 100, "Using cached version")
             self.meta["cache_hits"] += 1
             return self.cache.get(artifact_type)
@@ -361,10 +416,17 @@ class ArtifactGenerator:
         epics_md = self.generate_epics()
         features_md = self.generate_features()
 
+        LOG.info("=" * 70)
+        LOG.info(f"GENERATING: {artifact_type.value}")
+        LOG.info(f"Dependencies: prd, epics, features")
+        LOG.info("=" * 70)
+
         self.meta["cache_misses"] += 1
         self._report_progress(artifact_type, "processing", 0, "Generating user stories...")
 
         t0 = time.time()
+        feature_ids = extract_feature_ids(features_md)
+        LOG.info(f"  Creating user stories for {len(feature_ids)} features")
         stories_md = _run_step(
             self.loaded,
             SYSTEM_STORIES,
@@ -372,8 +434,8 @@ class ArtifactGenerator:
             self.cfg,
             max_new_tokens=1600,
             temperature=max(self.cfg.temperature - 0.2, 0.3),
+            step_name="user_stories",
         )
-        feature_ids = extract_feature_ids(features_md)
         stories_md = ensure_stories_for_features(stories_md, feature_ids)
         stories_md = add_story_summary_header(stories_md)
         elapsed = round(time.time() - t0, 3)
@@ -383,6 +445,7 @@ class ArtifactGenerator:
         self._save_artifact(artifact_type, stories_md)
         self._report_progress(artifact_type, "completed", 100, f"Completed in {elapsed}s")
 
+        LOG.info(f"✓ {artifact_type.value} complete: {len(stories_md)} chars in {elapsed}s")
         return stories_md
 
     def generate_lean_canvas(self) -> str:
@@ -390,7 +453,7 @@ class ArtifactGenerator:
         artifact_type = ArtifactType.LEAN_CANVAS
 
         if self.cache.has(artifact_type):
-            LOG.info(f"Using cached {artifact_type.value}")
+            LOG.info(f"✓ Using cached {artifact_type.value}")
             self._report_progress(artifact_type, "completed", 100, "Using cached version")
             self.meta["cache_hits"] += 1
             return self.cache.get(artifact_type)
@@ -398,6 +461,11 @@ class ArtifactGenerator:
         # Dependencies
         prd_md = self.generate_prd()
         caps_md = self.generate_capabilities()
+
+        LOG.info("=" * 70)
+        LOG.info(f"GENERATING: {artifact_type.value}")
+        LOG.info(f"Dependencies: prd, capabilities")
+        LOG.info("=" * 70)
 
         self.meta["cache_misses"] += 1
         self._report_progress(artifact_type, "processing", 0, "Generating lean canvas...")
@@ -410,6 +478,7 @@ class ArtifactGenerator:
             self.cfg,
             max_new_tokens=700,
             temperature=max(self.cfg.temperature - 0.2, 0.3),
+            step_name="lean_canvas",
         )
         elapsed = round(time.time() - t0, 3)
         self.meta["timings"]["lean_canvas_seconds"] = elapsed
@@ -418,6 +487,7 @@ class ArtifactGenerator:
         self._save_artifact(artifact_type, canvas_md)
         self._report_progress(artifact_type, "completed", 100, f"Completed in {elapsed}s")
 
+        LOG.info(f"✓ {artifact_type.value} complete: {len(canvas_md)} chars in {elapsed}s")
         return canvas_md
 
     def generate_selected(self) -> Dict[ArtifactType, str]:
@@ -546,6 +616,10 @@ def generate_prd_and_features(loaded: LoadedModel, cfg: GenerationConfig, produc
     """Backward-compatible: single intent string -> PRD + features."""
     meta: Dict[str, Any] = {"model_id": cfg.model_id, "timings": {}, "generation": as_dict(cfg)}
 
+    LOG.info("=" * 70)
+    LOG.info("GENERATING: PRD (single-file mode)")
+    LOG.info("=" * 70)
+
     t0 = time.time()
     prd_md = _run_step(
         loaded,
@@ -554,18 +628,24 @@ def generate_prd_and_features(loaded: LoadedModel, cfg: GenerationConfig, produc
         cfg,
         max_new_tokens=cfg.max_new_tokens,
         temperature=cfg.temperature,
+        step_name="prd",
     )
     meta["timings"]["prd_seconds"] = round(time.time() - t0, 3)
     prd_md = ensure_sections(prd_md, PRD_OUTLINE)
+
+    LOG.info("=" * 70)
+    LOG.info("GENERATING: FEATURES (single-file mode)")
+    LOG.info("=" * 70)
 
     t1 = time.time()
     features_md = _run_step(
         loaded,
         SYSTEM_FEATURES,
-        features_prompt(prd_md),
+        features_prompt(prd_md, ""),  # Empty epics for backward compat
         cfg,
         max_new_tokens=min(cfg.max_new_tokens, 900),
         temperature=max(cfg.temperature - 0.1, 0.2),
+        step_name="features",
     )
     meta["timings"]["features_seconds"] = round(time.time() - t1, 3)
 

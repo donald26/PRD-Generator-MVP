@@ -1,4 +1,5 @@
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any, Dict
 
@@ -47,6 +48,37 @@ def build_chat_input(tokenizer, system: str, user: str) -> str:
         return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     return f"SYSTEM: {system}\n\nUSER: {user}\n\nASSISTANT:"
 
+
+def _extract_assistant_response(text: str) -> str:
+    """
+    Extract only the assistant's response, removing any chat template artifacts.
+
+    This handles cases where the model output includes role markers or markdown code blocks.
+    """
+    # Remove common chat template markers at the start
+    patterns_to_remove = [
+        r"^system\s*\n",
+        r"^user\s*\n",
+        r"^assistant\s*\n",
+        r"^SYSTEM:.*?(?=\n\n)",
+        r"^USER:.*?(?=\n\n)",
+        r"^ASSISTANT:\s*",
+    ]
+
+    cleaned = text
+    for pattern in patterns_to_remove:
+        cleaned = re.sub(pattern, "", cleaned, flags=re.MULTILINE | re.DOTALL)
+
+    # If text contains markdown code blocks, extract the content
+    if cleaned.strip().startswith("```markdown\n"):
+        cleaned = re.sub(r"^```markdown\n", "", cleaned.strip())
+        cleaned = re.sub(r"\n```$", "", cleaned)
+    elif cleaned.strip().startswith("```\n"):
+        cleaned = re.sub(r"^```\n", "", cleaned.strip())
+        cleaned = re.sub(r"\n```$", "", cleaned)
+
+    return cleaned.strip()
+
 @torch.inference_mode()
 def generate_text(
     loaded: LoadedModel,
@@ -71,8 +103,14 @@ def generate_text(
         repetition_penalty=repetition_penalty,
         pad_token_id=tok.eos_token_id,
     )
-    decoded = tok.decode(out[0], skip_special_tokens=True)
-    # Remove prompt echo if present
-    if decoded.startswith(prompt[:80]):
-        decoded = decoded[len(prompt):]
+
+    # Decode only the NEW tokens (not the prompt)
+    prompt_length = inputs['input_ids'].shape[1]
+    new_tokens = out[0][prompt_length:]
+    decoded = tok.decode(new_tokens, skip_special_tokens=True)
+
+    # Clean up any remaining chat template artifacts
+    decoded = _extract_assistant_response(decoded)
+
+    LOG.debug(f"Generated {len(decoded)} characters")
     return decoded.strip()
