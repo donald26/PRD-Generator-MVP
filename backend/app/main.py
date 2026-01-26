@@ -13,6 +13,7 @@ import logging
 import threading
 
 from .services.prd_service import generate_artifacts, generate_artifacts_selective
+from .job_tracker import JobTracker
 
 # Import artifact types for endpoint responses
 import sys
@@ -42,10 +43,14 @@ app.add_middleware(
 BASE_DIR = Path(__file__).parent.parent
 TEMP_DIR = BASE_DIR / "temp"
 OUTPUT_DIR = BASE_DIR / "outputs"
+JOBS_DB = BASE_DIR / "jobs.json"
 TEMP_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-# In-memory progress tracking
+# Initialize job tracker with JSON storage
+job_tracker = JobTracker(JOBS_DB)
+
+# In-memory progress tracking (for real-time updates)
 job_progress = {}
 
 def update_job_progress(job_id: str, step: str, progress: int, message: str):
@@ -56,6 +61,8 @@ def update_job_progress(job_id: str, step: str, progress: int, message: str):
         "message": message,
         "status": "processing"
     }
+    # Also update job tracker
+    job_tracker.update_progress(job_id, step, progress, message)
     logger.info(f"Job {job_id}: {step} ({progress}%) - {message}")
 
 def update_job_progress_enhanced(job_id: str, artifact: str, status: str, progress: int, message: str):
@@ -115,6 +122,13 @@ def run_generation_background(job_id: str, job_temp_dir: Path, job_output_dir: P
             shutil.rmtree(job_temp_dir)
         logger.info(f"Cleaned up temp directory for job {job_id}")
 
+        # Mark job as completed
+        job_tracker.mark_completed(
+            job_id,
+            output_path=str(job_output_dir),
+            download_url=f"/api/download/{job_id}"
+        )
+
         # Clean up progress tracking
         if job_id in job_progress:
             del job_progress[job_id]
@@ -129,6 +143,8 @@ def run_generation_background(job_id: str, job_temp_dir: Path, job_output_dir: P
             "message": str(e),
             "status": "failed"
         }
+        # Mark job as failed in tracker
+        job_tracker.mark_failed(job_id, str(e))
         # Cleanup on error
         if job_temp_dir.exists():
             shutil.rmtree(job_temp_dir)
@@ -187,6 +203,9 @@ async def generate_from_upload(
                 content = await file.read()
                 f.write(content)
             logger.info(f"Saved file: {file.filename}")
+
+        # Create job in tracker
+        job_tracker.create_job(job_id, artifacts=None)
 
         # Initialize progress
         update_job_progress(job_id, "Starting", 0, "Initializing generation...")
@@ -470,6 +489,9 @@ async def generate_selective_upload(
                     f.write(await file.read())
                 logger.info(f"Saved file: {file.filename}")
 
+        # Create job in tracker
+        job_tracker.create_job(job_id, artifacts=list(selected) if selected else None)
+
         # Initialize progress
         update_job_progress_enhanced(job_id, "Starting", "processing", 0, "Initializing...")
 
@@ -498,7 +520,14 @@ async def generate_selective_upload(
                 if job_temp_dir.exists():
                     shutil.rmtree(job_temp_dir)
 
-                # Mark complete
+                # Mark complete in tracker
+                job_tracker.mark_completed(
+                    job_id,
+                    output_path=str(job_output_dir),
+                    download_url=f"/api/download/{job_id}"
+                )
+
+                # Mark complete in memory
                 if job_id in job_progress:
                     job_progress[job_id]["overall_status"] = "completed"
                     job_progress[job_id]["overall_progress"] = 100
@@ -507,6 +536,8 @@ async def generate_selective_upload(
 
             except Exception as e:
                 logger.error(f"Background task error for job {job_id}: {e}")
+                # Mark failed in tracker
+                job_tracker.mark_failed(job_id, str(e))
                 if job_id in job_progress:
                     job_progress[job_id]["overall_status"] = "failed"
                     job_progress[job_id]["overall_progress"] = 0
@@ -531,6 +562,72 @@ async def generate_selective_upload(
         if job_output_dir.exists():
             shutil.rmtree(job_output_dir)
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/jobs")
+async def list_jobs():
+    """
+    List all jobs with their status
+    Returns most recent jobs first
+    """
+    jobs = job_tracker.list_jobs(limit=100)
+    return {
+        "jobs": jobs,
+        "total": len(jobs)
+    }
+
+@app.get("/api/jobs/{job_id}/artifacts")
+async def list_job_artifacts(job_id: str):
+    """
+    List all available artifacts for a job
+    """
+    job = job_tracker.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    output_dir = OUTPUT_DIR / job_id
+    if not output_dir.exists():
+        raise HTTPException(status_code=404, detail="Job output not found")
+
+    # List all markdown and other files
+    artifacts = []
+    for file_path in output_dir.glob("*"):
+        if file_path.is_file():
+            artifacts.append({
+                "name": file_path.stem,
+                "filename": file_path.name,
+                "extension": file_path.suffix,
+                "size": file_path.stat().st_size,
+                "url": f"/api/jobs/{job_id}/artifacts/{file_path.name}"
+            })
+
+    return {
+        "job_id": job_id,
+        "artifacts": artifacts,
+        "total": len(artifacts)
+    }
+
+@app.get("/api/jobs/{job_id}/artifacts/{artifact_name}")
+async def get_job_artifact(job_id: str, artifact_name: str):
+    """
+    Get the content of a specific artifact
+    """
+    job = job_tracker.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    artifact_path = OUTPUT_DIR / job_id / artifact_name
+    if not artifact_path.exists():
+        raise HTTPException(status_code=404, detail=f"Artifact {artifact_name} not found")
+
+    # Return as plain text for markdown/json, or as file for others
+    if artifact_path.suffix in ['.md', '.json', '.txt']:
+        return FileResponse(
+            path=artifact_path,
+            media_type="text/plain",
+            headers={"Content-Type": "text/plain; charset=utf-8"}
+        )
+    else:
+        return FileResponse(path=artifact_path)
 
 if __name__ == "__main__":
     import uvicorn

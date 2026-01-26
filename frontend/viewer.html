@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Viewer - PRD Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        .split-container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            height: calc(100vh - 80px);
+        }
+        .job-list-panel {
+            border-right: 1px solid #e5e7eb;
+            overflow-y: auto;
+        }
+        .artifact-viewer-panel {
+            overflow-y: auto;
+            background: #f9fafb;
+        }
+        .job-item {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .job-item:hover {
+            background: #f3f4f6;
+        }
+        .job-item.selected {
+            background: #dbeafe;
+            border-left: 3px solid #2563eb;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .artifact-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .markdown-body {
+            line-height: 1.6;
+        }
+        .markdown-body h1 { font-size: 2em; margin: 0.67em 0; font-weight: bold; }
+        .markdown-body h2 { font-size: 1.5em; margin: 0.75em 0; font-weight: bold; }
+        .markdown-body h3 { font-size: 1.17em; margin: 0.83em 0; font-weight: bold; }
+        .markdown-body ul, .markdown-body ol { margin: 1em 0; padding-left: 2em; }
+        .markdown-body code { background: #f3f4f6; padding: 0.2em 0.4em; border-radius: 3px; font-family: monospace; }
+        .markdown-body pre { background: #f3f4f6; padding: 1em; border-radius: 6px; overflow-x: auto; }
+        .markdown-body pre code { background: none; padding: 0; }
+        .markdown-body blockquote { border-left: 4px solid #e5e7eb; padding-left: 1em; color: #6b7280; }
+        .markdown-body table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+        .markdown-body th, .markdown-body td { border: 1px solid #e5e7eb; padding: 0.5em; }
+        .markdown-body th { background: #f3f4f6; font-weight: bold; }
+        .copy-btn {
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .copy-btn:hover {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900">PRD Generator - Job Viewer</h1>
+                    <p class="text-gray-600 text-sm mt-1">View your generated artifacts</p>
+                </div>
+                <a href="index.html" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                    New Generation
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Split Screen Layout -->
+    <div class="split-container">
+        <!-- Left Panel: Job List -->
+        <div class="job-list-panel bg-white">
+            <div class="p-4 border-b">
+                <h2 class="text-lg font-semibold text-gray-900">Your Jobs</h2>
+                <p class="text-sm text-gray-600 mt-1">Click a job to view artifacts</p>
+            </div>
+
+            <!-- Job List -->
+            <div id="jobList" class="p-4">
+                <div class="flex items-center justify-center py-8">
+                    <div class="spinner"></div>
+                </div>
+                <p class="text-center text-gray-500">Loading jobs...</p>
+            </div>
+        </div>
+
+        <!-- Right Panel: Artifact Viewer -->
+        <div class="artifact-viewer-panel p-6">
+            <div id="artifactViewer">
+                <!-- Welcome Message -->
+                <div class="text-center py-20">
+                    <svg class="mx-auto h-24 w-24 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <h3 class="mt-4 text-xl font-medium text-gray-900">Select a job to view artifacts</h3>
+                    <p class="mt-2 text-gray-600">Choose a job from the list on the left</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        let currentJobId = null;
+
+        // Load job ID from URL if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlJobId = urlParams.get('job');
+
+        // Load jobs on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadJobs();
+            // Auto-select job from URL if provided
+            if (urlJobId) {
+                setTimeout(() => selectJob(urlJobId), 500);
+            }
+        });
+
+        async function loadJobs() {
+            try {
+                const response = await fetch(`${API_URL}/api/jobs`);
+                const data = await response.json();
+
+                const jobList = document.getElementById('jobList');
+
+                if (data.jobs.length === 0) {
+                    jobList.innerHTML = `
+                        <div class="text-center py-8">
+                            <p class="text-gray-500">No jobs found</p>
+                            <a href="index.html" class="mt-4 inline-block text-blue-600 hover:text-blue-800">
+                                Create your first generation
+                            </a>
+                        </div>
+                    `;
+                    return;
+                }
+
+                jobList.innerHTML = data.jobs.map(job => {
+                    const statusIcon = {
+                        'completed': '✓',
+                        'processing': '⏳',
+                        'failed': '✗'
+                    }[job.status] || '?';
+
+                    const statusColor = {
+                        'completed': 'text-green-600',
+                        'processing': 'text-blue-600',
+                        'failed': 'text-red-600'
+                    }[job.status] || 'text-gray-600';
+
+                    const date = new Date(job.created_at).toLocaleString();
+
+                    return `
+                        <div class="job-item p-4 border-b" onclick="selectJob('${job.job_id}')" data-job-id="${job.job_id}">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="${statusColor} text-2xl">${statusIcon}</span>
+                                <span class="text-xs text-gray-500">${date}</span>
+                            </div>
+                            <div class="text-sm font-medium text-gray-900 truncate mb-1">
+                                Job ${job.job_id.substring(0, 8)}...
+                            </div>
+                            <div class="text-xs text-gray-600">
+                                ${job.status === 'processing' ? job.message : `${job.status.charAt(0).toUpperCase() + job.status.slice(1)}`}
+                            </div>
+                            ${job.progress ? `
+                                <div class="mt-2 w-full bg-gray-200 rounded-full h-1.5">
+                                    <div class="bg-blue-600 h-1.5 rounded-full" style="width: ${job.progress}%"></div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error('Error loading jobs:', error);
+                document.getElementById('jobList').innerHTML = `
+                    <div class="text-center py-8 text-red-600">
+                        <p>Error loading jobs</p>
+                        <p class="text-sm mt-2">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function selectJob(jobId) {
+            currentJobId = jobId;
+
+            // Update selected state
+            document.querySelectorAll('.job-item').forEach(item => {
+                item.classList.toggle('selected', item.dataset.jobId === jobId);
+            });
+
+            // Update URL without reload
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('job', jobId);
+            window.history.pushState({}, '', newUrl);
+
+            // Load artifacts for this job
+            await loadArtifacts(jobId);
+        }
+
+        async function loadArtifacts(jobId) {
+            const viewer = document.getElementById('artifactViewer');
+            viewer.innerHTML = `
+                <div class="flex items-center justify-center py-20">
+                    <div class="spinner"></div>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`${API_URL}/api/jobs/${jobId}/artifacts`);
+                const data = await response.json();
+
+                if (data.artifacts.length === 0) {
+                    viewer.innerHTML = `
+                        <div class="text-center py-20">
+                            <p class="text-gray-600">No artifacts generated yet</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Create artifact tabs
+                const markdownArtifacts = data.artifacts.filter(a => a.extension === '.md');
+                const otherArtifacts = data.artifacts.filter(a => a.extension !== '.md');
+
+                viewer.innerHTML = `
+                    <div class="bg-white rounded-lg shadow-sm p-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <div>
+                                <h2 class="text-xl font-bold text-gray-900">Job: ${jobId.substring(0, 12)}...</h2>
+                                <button onclick="copyJobId('${jobId}')" class="copy-btn text-sm text-blue-600 hover:text-blue-800 mt-1">
+                                    📋 Copy full Job ID
+                                </button>
+                            </div>
+                            <a href="${API_URL}/api/download/${jobId}"
+                               class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                                📥 Download ZIP
+                            </a>
+                        </div>
+
+                        <!-- Tabs -->
+                        <div class="border-b border-gray-200 mb-6">
+                            <nav class="flex space-x-4 overflow-x-auto">
+                                ${markdownArtifacts.map((artifact, index) => `
+                                    <button
+                                        onclick="loadArtifactContent('${jobId}', '${artifact.filename}')"
+                                        id="tab-${artifact.filename}"
+                                        class="artifact-tab py-3 px-4 text-sm font-medium whitespace-nowrap ${index === 0 ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600 hover:text-gray-900'}">
+                                        ${artifact.name}
+                                    </button>
+                                `).join('')}
+                            </nav>
+                        </div>
+
+                        <!-- Content Area -->
+                        <div id="artifactContent" class="artifact-content">
+                            <div class="flex items-center justify-center py-8">
+                                <div class="spinner"></div>
+                            </div>
+                        </div>
+
+                        ${otherArtifacts.length > 0 ? `
+                            <div class="mt-6 pt-6 border-t">
+                                <h3 class="text-sm font-semibold text-gray-700 mb-3">Other Files:</h3>
+                                <div class="grid grid-cols-2 gap-3">
+                                    ${otherArtifacts.map(artifact => `
+                                        <a href="${API_URL}/api/jobs/${jobId}/artifacts/${artifact.filename}"
+                                           target="_blank"
+                                           class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                                            <span class="text-2xl mr-3">📄</span>
+                                            <div class="flex-1 min-w-0">
+                                                <div class="text-sm font-medium text-gray-900 truncate">${artifact.filename}</div>
+                                                <div class="text-xs text-gray-500">${(artifact.size / 1024).toFixed(1)} KB</div>
+                                            </div>
+                                        </a>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                // Load first artifact by default
+                if (markdownArtifacts.length > 0) {
+                    await loadArtifactContent(jobId, markdownArtifacts[0].filename);
+                }
+
+            } catch (error) {
+                console.error('Error loading artifacts:', error);
+                viewer.innerHTML = `
+                    <div class="text-center py-20 text-red-600">
+                        <p>Error loading artifacts</p>
+                        <p class="text-sm mt-2">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function loadArtifactContent(jobId, filename) {
+            const contentDiv = document.getElementById('artifactContent');
+            contentDiv.innerHTML = `
+                <div class="flex items-center justify-center py-8">
+                    <div class="spinner"></div>
+                </div>
+            `;
+
+            // Update tab styles
+            document.querySelectorAll('.artifact-tab').forEach(tab => {
+                tab.className = 'artifact-tab py-3 px-4 text-sm font-medium whitespace-nowrap text-gray-600 hover:text-gray-900';
+            });
+            const activeTab = document.getElementById(`tab-${filename}`);
+            if (activeTab) {
+                activeTab.className = 'artifact-tab py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 border-blue-600 text-blue-600';
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/jobs/${jobId}/artifacts/${filename}`);
+                const content = await response.text();
+
+                if (filename.endsWith('.md')) {
+                    // Render markdown
+                    contentDiv.innerHTML = `<div class="markdown-body">${marked.parse(content)}</div>`;
+                } else if (filename.endsWith('.json')) {
+                    // Render JSON
+                    const jsonData = JSON.parse(content);
+                    contentDiv.innerHTML = `<pre class="text-sm"><code>${JSON.stringify(jsonData, null, 2)}</code></pre>`;
+                } else {
+                    // Plain text
+                    contentDiv.innerHTML = `<pre class="text-sm whitespace-pre-wrap">${content}</pre>`;
+                }
+
+            } catch (error) {
+                console.error('Error loading artifact content:', error);
+                contentDiv.innerHTML = `
+                    <div class="text-center py-8 text-red-600">
+                        <p>Error loading artifact</p>
+                        <p class="text-sm mt-2">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function copyJobId(jobId) {
+            navigator.clipboard.writeText(jobId).then(() => {
+                alert('Job ID copied to clipboard!');
+            }).catch(err => {
+                console.error('Error copying:', err);
+                // Fallback: show job ID in alert
+                prompt('Copy this Job ID:', jobId);
+            });
+        }
+
+        // Auto-refresh job list every 10 seconds to catch new jobs
+        setInterval(loadJobs, 10000);
+    </script>
+</body>
+</html>

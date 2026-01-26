@@ -1,0 +1,17 @@
+{
+  "491b21fc-1edf-4842-bd06-abcd0318433a": {
+    "job_id": "491b21fc-1edf-4842-bd06-abcd0318433a",
+    "status": "processing",
+    "created_at": "2026-01-26T09:26:24.034756",
+    "artifacts_selected": [
+      "capabilities",
+      "prd"
+    ],
+    "progress": 0,
+    "current_step": "Starting",
+    "message": "Initializing...",
+    "output_path": null,
+    "download_url": null,
+    "error": null
+  }
+}
