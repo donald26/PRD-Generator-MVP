@@ -80,6 +80,9 @@ class RecommendationEngine:
         # Lean Canvas - Recommended for business/strategic planning
         recommendations.append(self._recommend_lean_canvas(signals))
 
+        # Technical Architecture - Recommended when technical complexity is indicated
+        recommendations.append(self._recommend_technical_architecture(signals))
+
         self.recommendations = recommendations
         LOG.info(f"Generated {len(recommendations)} artifact recommendations")
 
@@ -300,6 +303,35 @@ class RecommendationEngine:
 
         return ArtifactRecommendation(
             artifact_type=ArtifactType.LEAN_CANVAS.value,
+            confidence=confidence,
+            rationale=rationale,
+            recommended=confidence >= self.CONFIDENCE_MEDIUM
+        )
+
+    def _recommend_technical_architecture(self, signals: Dict[str, Any]) -> ArtifactRecommendation:
+        """Technical Architecture recommended when technical complexity is indicated"""
+        req_count = signals.get("requirement_count", 0)
+        technical_focus = signals.get("technical_focus", 0)
+        has_requirements = signals.get("has_requirements", False)
+
+        if technical_focus >= 3 and req_count >= 5:
+            confidence = 90
+            rationale = f"Strong technical focus ({technical_focus} indicators) with detailed requirements ({req_count}) warrants architecture diagram"
+        elif technical_focus >= 2 and req_count >= 3:
+            confidence = 80
+            rationale = f"Technical context ({technical_focus} indicators) and requirements ({req_count}) support architecture documentation"
+        elif technical_focus >= 1 or req_count >= 4:
+            confidence = 65
+            rationale = "Some technical context or requirements present; architecture diagram recommended for clarity"
+        elif has_requirements:
+            confidence = 55
+            rationale = "Requirements present; architecture diagram useful for system design planning"
+        else:
+            confidence = 40
+            rationale = "Limited technical context; architecture diagram may be premature"
+
+        return ArtifactRecommendation(
+            artifact_type=ArtifactType.TECHNICAL_ARCHITECTURE.value,
             confidence=confidence,
             rationale=rationale,
             recommended=confidence >= self.CONFIDENCE_MEDIUM

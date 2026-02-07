@@ -38,6 +38,10 @@ class GenerationConfig:
     enable_context_summary: bool = True  # Generate structured document context assessment first
     include_source_traceability: bool = True  # Include file-level source mapping
 
+    # NEW: Architecture Diagram
+    enable_architecture_diagram: bool = True  # Generate technical architecture reference diagram
+    enable_architecture_options: bool = True  # Generate alternative architecture patterns per capability
+
     # NEW: Template Management
     template_dir: Optional[Path] = None  # Custom template directory (None = use default templates/)
 

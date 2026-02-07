@@ -15,6 +15,8 @@ from .prompts import (
     lean_canvas_prompt,
     epics_prompt,
     user_stories_prompt,
+    architecture_prompt,
+    architecture_options_prompt,
     PRD_OUTLINE,
 )
 from .utils import ensure_sections, strip_trailing_noise, validate_output
@@ -27,6 +29,13 @@ from .features import add_feature_summary_header, ensure_features_for_epics, ext
 from .stories import add_story_summary_header, ensure_stories_for_features
 from .artifact_types import ArtifactType, ARTIFACT_FILENAMES, get_artifact_set, validate_artifact_names
 from .dependencies import ArtifactDependencyResolver, ArtifactCache
+from .architecture import (
+    parse_architecture_markdown,
+    parse_architecture_options_markdown,
+    validate_architecture_schema,
+    save_architecture_json,
+    format_architecture_markdown,
+)
 
 LOG = logging.getLogger("prdgen.generator")
 
@@ -38,6 +47,8 @@ SYSTEM_FEATURES = get_system_prompt("features")
 SYSTEM_CAPS = get_system_prompt("capabilities")
 SYSTEM_CANVAS = get_system_prompt("canvas")
 SYSTEM_STORIES = get_system_prompt("stories")
+SYSTEM_ARCHITECTURE = get_system_prompt("architecture")
+SYSTEM_ARCHITECTURE_OPTIONS = get_system_prompt("architecture_options")
 
 def _run_step(
     loaded: LoadedModel,
@@ -556,6 +567,100 @@ class ArtifactGenerator:
         LOG.info(f"✓ {artifact_type.value} complete: {len(canvas_md)} chars in {elapsed}s")
         return canvas_md
 
+    def generate_technical_architecture(self) -> str:
+        """Generate Technical Architecture Reference Diagram"""
+        artifact_type = ArtifactType.TECHNICAL_ARCHITECTURE
+
+        # Skip if disabled
+        if not self.cfg.enable_architecture_diagram:
+            LOG.info(f"⊘ Architecture diagram disabled, skipping")
+            return ""
+
+        # Check cache
+        if self.cache.has(artifact_type):
+            LOG.info(f"✓ Using cached {artifact_type.value}")
+            self._report_progress(artifact_type, "completed", 100, "Using cached version")
+            self.meta["cache_hits"] += 1
+            return self.cache.get(artifact_type)
+
+        # Dependencies
+        prd_md = self.generate_prd()
+        caps_md = self.generate_capabilities()
+        context_md = self.cache.get(ArtifactType.CONTEXT_SUMMARY) or ""
+
+        LOG.info("=" * 70)
+        LOG.info(f"GENERATING: {artifact_type.value}")
+        LOG.info(f"Dependencies: prd, capabilities, context_summary (optional)")
+        LOG.info("=" * 70)
+
+        self.meta["cache_misses"] += 1
+        self._report_progress(artifact_type, "processing", 0, "Generating architecture...")
+
+        t0 = time.time()
+        arch_md = _run_step(
+            self.loaded,
+            SYSTEM_ARCHITECTURE,
+            architecture_prompt(prd_md, caps_md, context_md),
+            self.cfg,
+            max_new_tokens=1600,
+            temperature=max(self.cfg.temperature - 0.2, 0.3),
+            step_name="technical_architecture",
+        )
+
+        # Parse into structured schema
+        try:
+            arch_schema = parse_architecture_markdown(arch_md)
+            is_valid, errors = validate_architecture_schema(arch_schema.to_dict())
+            if not is_valid:
+                LOG.warning(f"Architecture schema validation warnings: {errors}")
+
+            # Optional: Generate architecture options per capability
+            if self.cfg.enable_architecture_options:
+                LOG.info("  Generating architecture options...")
+                self._report_progress(artifact_type, "processing", 50, "Generating options...")
+
+                options_md = _run_step(
+                    self.loaded,
+                    SYSTEM_ARCHITECTURE_OPTIONS,
+                    architecture_options_prompt(prd_md, caps_md, arch_md, context_md),
+                    self.cfg,
+                    max_new_tokens=1200,
+                    temperature=self.cfg.temperature,
+                    step_name="architecture_options",
+                )
+
+                try:
+                    options = parse_architecture_options_markdown(options_md)
+                    if options:
+                        arch_schema.architecture_options = options
+                        LOG.info(f"  Generated {len(options)} capability option sets")
+                except Exception as opt_err:
+                    LOG.warning(f"Architecture options parsing warning: {opt_err}")
+                    # Continue without options
+
+            # Save JSON version
+            if self.cfg.output_dir:
+                json_path = Path(self.cfg.output_dir) / "architecture_reference.json"
+                save_architecture_json(arch_schema, json_path)
+                LOG.info(f"Saved architecture JSON to {json_path.name}")
+
+            # Format final markdown (ensures Mermaid diagram is included)
+            arch_md = format_architecture_markdown(arch_schema)
+
+        except Exception as e:
+            LOG.warning(f"Architecture post-processing warning: {e}")
+            # Keep original markdown if parsing fails
+
+        elapsed = round(time.time() - t0, 3)
+        self.meta["timings"]["architecture_seconds"] = elapsed
+
+        self.cache.set(artifact_type, arch_md)
+        self._save_artifact(artifact_type, arch_md)
+        self._report_progress(artifact_type, "completed", 100, f"Completed in {elapsed}s")
+
+        LOG.info(f"✓ {artifact_type.value} complete: {len(arch_md)} chars in {elapsed}s")
+        return arch_md
+
     def generate_selected(self) -> Dict[ArtifactType, str]:
         """
         Generate selected artifacts (with automatic dependency resolution).
@@ -643,6 +748,7 @@ class ArtifactGenerator:
             ArtifactType.CORPUS_SUMMARY: self.generate_corpus_summary,
             ArtifactType.PRD: self.generate_prd,
             ArtifactType.CAPABILITIES: self.generate_capabilities,
+            ArtifactType.TECHNICAL_ARCHITECTURE: self.generate_technical_architecture,
             ArtifactType.CAPABILITY_CARDS: self.generate_capability_cards,
             ArtifactType.EPICS: self.generate_epics,
             ArtifactType.FEATURES: self.generate_features,

@@ -49,14 +49,20 @@ class ArtifactDependencyResolver:
             ArtifactType.PRD,
             ArtifactType.CAPABILITIES
         ],
+        ArtifactType.TECHNICAL_ARCHITECTURE: [
+            ArtifactType.CORPUS_SUMMARY,
+            ArtifactType.PRD,
+            ArtifactType.CAPABILITIES,
+        ],
     }
 
     # Canonical generation order (topologically sorted)
     GENERATION_ORDER: List[ArtifactType] = [
-        ArtifactType.CONTEXT_SUMMARY,  # NEW: First-stage document assessment
+        ArtifactType.CONTEXT_SUMMARY,  # First-stage document assessment
         ArtifactType.CORPUS_SUMMARY,
         ArtifactType.PRD,
         ArtifactType.CAPABILITIES,
+        ArtifactType.TECHNICAL_ARCHITECTURE,  # Architecture after capabilities
         ArtifactType.CAPABILITY_CARDS,
         ArtifactType.EPICS,
         ArtifactType.FEATURES,

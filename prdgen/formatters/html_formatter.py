@@ -201,7 +201,16 @@ class HTMLFormatter:
             .container {{ flex-direction: column; }}
             .sidebar {{ width: 100%; height: auto; position: relative; }}
         }}
+        .mermaid {{
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            overflow-x: auto;
+        }}
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({{startOnLoad:true, theme:'default'}});</script>
 </head>
 <body>
     <div class="container">
@@ -277,7 +286,9 @@ class HTMLFormatter:
         "epics": "🎯",
         "features": "✨",
         "user_stories": "👤",
-        "lean_canvas": "📊"
+        "lean_canvas": "📊",
+        "technical_architecture": "🏗️",
+        "architecture_reference": "🏗️",
     }
 
     ARTIFACT_TITLES = {
@@ -288,7 +299,9 @@ class HTMLFormatter:
         "epics": "Epics",
         "features": "Features",
         "user_stories": "User Stories",
-        "lean_canvas": "Lean Canvas"
+        "lean_canvas": "Lean Canvas",
+        "technical_architecture": "Technical Architecture Reference",
+        "architecture_reference": "Technical Architecture Reference",
     }
 
     def generate_report(self, artifacts: Dict[str, str], metadata: Optional[Dict] = None) -> str:
@@ -351,6 +364,14 @@ class HTMLFormatter:
         a library like python-markdown, but this avoids dependencies.
         """
         html = markdown
+
+        # Mermaid diagrams (```mermaid ... ```) - must be before generic code blocks
+        html = re.sub(
+            r'```mermaid\n(.*?)\n```',
+            r'<div class="mermaid">\1</div>',
+            html,
+            flags=re.DOTALL
+        )
 
         # Code blocks (```)
         html = re.sub(

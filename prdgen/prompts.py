@@ -437,3 +437,267 @@ PRD:
 Return ONLY the epics in Markdown format following the template structure.
 Each epic should be a complete, self-contained section.
 """
+
+
+def architecture_prompt(prd_markdown: str, capabilities_md: str, context_summary_md: str = "") -> str:
+    """
+    Generate prompt for technical architecture reference diagram.
+
+    Args:
+        prd_markdown: Generated PRD content
+        capabilities_md: Generated capability map
+        context_summary_md: Optional context summary for additional grounding
+
+    Returns:
+        Formatted prompt string for architecture generation
+    """
+    context_section = ""
+    if context_summary_md:
+        context_section = f"""
+CONTEXT SUMMARY (for additional grounding):
+{context_summary_md}
+
+---
+"""
+
+    return f"""You are a Solutions Architect creating a Technical Architecture Reference Diagram.
+
+Your task is to derive a system architecture from the PRD and Capability Map provided.
+
+**CRITICAL RULES:**
+- Extract architecture ONLY from explicitly stated or clearly implied requirements
+- Do NOT invent components, services, databases, or technologies not in the inputs
+- If information is missing for a component detail, explicitly state "Not specified"
+- Include AI/ML components ONLY if RAG, LLM, ML models, or vector databases are mentioned
+- Flag all assumptions and unresolved questions
+
+**COMPONENT TYPES** (use only these):
+- client: User-facing applications (web, mobile, CLI)
+- gateway: API gateways, load balancers, reverse proxies
+- service: Backend services, microservices, APIs
+- worker: Background processors, job runners, async handlers
+- database: Relational/document databases
+- cache: In-memory caches (Redis, Memcached)
+- queue: Message queues (RabbitMQ, SQS, Kafka topics)
+- stream: Event streams, Kafka, Kinesis
+- ml_model: ML model serving endpoints
+- vector_db: Vector databases for RAG/embeddings
+- idp: Identity providers, auth services
+- observability: Logging, monitoring, tracing systems
+- external_system: Third-party integrations
+
+**OUTPUT FORMAT:**
+Produce a structured document with these EXACT sections:
+
+## Title
+[Product Name] Technical Architecture
+
+## Overview
+[2-4 sentences describing the system architecture purpose and scope]
+
+## Assumptions
+- [List assumptions made to fill gaps]
+
+## Open Questions
+- [List unresolved questions that need clarification]
+
+## Components
+
+### [Component Name]
+- **ID:** [unique_lowercase_id using underscores]
+- **Type:** [component_type from list above]
+- **Responsibilities:**
+  - [Responsibility 1]
+  - [Responsibility 2]
+- **Data Stores:** [list or "None"]
+- **Security Notes:** [list or "Not specified"]
+
+[Repeat for each component]
+
+## Data Flows
+
+### [Flow Description]
+- **From:** [source_component_id]
+- **To:** [target_component_id]
+- **Description:** [what data/request flows]
+- **Protocol:** [HTTP/gRPC/WebSocket/AMQP/etc.]
+- **Auth:** [OAuth2/JWT/API Key/mTLS/None]
+- **Data:** [list of data types transferred]
+
+[Repeat for each significant flow]
+
+## Non-Functional Requirements
+
+### Availability
+[State availability requirements or "Not specified"]
+
+### Performance
+[State performance requirements or "Not specified"]
+
+### Security
+[State security requirements or "Not specified"]
+
+### Compliance
+[State compliance requirements or "Not specified"]
+
+### Observability
+[State observability requirements or "Not specified"]
+
+## Deployment View
+
+### Environment
+[Cloud provider, on-prem, hybrid, or "Not specified"]
+
+### Scaling Notes
+- [Scaling consideration 1]
+- [Scaling consideration 2]
+
+### Multi-Tenancy
+[Multi-tenancy approach or "Not specified"]
+
+## Architecture Diagram
+
+```mermaid
+flowchart TB
+    subgraph Client["Client Layer"]
+        [client components]
+    end
+
+    subgraph Platform["Core Platform"]
+        [service components]
+    end
+
+    subgraph Data["Data Layer"]
+        [database/cache components]
+    end
+
+    subgraph AI["AI Layer"]
+        [ml/vector components - ONLY if applicable]
+    end
+
+    subgraph External["External Integrations"]
+        [external system components]
+    end
+
+    [data flow arrows between components]
+```
+
+---
+
+{context_section}PRD:
+{prd_markdown}
+
+---
+
+CAPABILITY MAP:
+{capabilities_md}
+
+---
+
+Return ONLY the architecture document in Markdown format using the sections above.
+Ensure the Mermaid diagram is syntactically correct and includes all defined components.
+"""
+
+
+def architecture_options_prompt(
+    prd_markdown: str,
+    capabilities_md: str,
+    base_architecture_md: str,
+    context_summary_md: str = ""
+) -> str:
+    """
+    Generate prompt for architecture options per capability.
+
+    Args:
+        prd_markdown: Generated PRD content
+        capabilities_md: Generated capability map
+        base_architecture_md: The primary architecture reference already generated
+        context_summary_md: Optional context summary for additional grounding
+
+    Returns:
+        Formatted prompt string for architecture options generation
+    """
+    context_section = ""
+    if context_summary_md:
+        context_section = f"""
+CONTEXT SUMMARY:
+{context_summary_md}
+
+---
+"""
+
+    return f"""You are generating alternative architecture patterns for key capabilities.
+
+**TASK:**
+Review the base architecture and identify 2-3 capabilities that could benefit from alternative implementation patterns. For each capability, provide 1-2 alternative architecture options with explicit trade-offs.
+
+**SELECTION CRITERIA:**
+Only create options for capabilities where:
+- Multiple valid architectural patterns exist (e.g., sync vs async, centralized vs distributed)
+- The choice materially affects system design, scalability, or operations
+- Trade-offs are meaningful and decision-worthy
+
+Do NOT create options for:
+- Standard CRUD operations with no meaningful alternatives
+- Capabilities with a single obvious implementation
+- Areas where the PRD/requirements clearly dictate the approach
+
+**OUTPUT FORMAT:**
+For each capability with options, use this EXACT structure:
+
+### [Capability Name]
+
+#### Option 1: [Pattern Label]
+
+**Description:** [2-3 sentences describing this architectural approach]
+
+**Assumptions:**
+- [Assumption 1]
+- [Assumption 2]
+
+**Trade-offs:**
+| Pros | Cons |
+|------|------|
+| [Pro 1] | [Con 1] |
+| [Pro 2] | [Con 2] |
+
+**When to Choose:** [Non-prescriptive guidance on when this pattern fits]
+
+```mermaid
+flowchart TB
+    [focused diagram showing this pattern]
+```
+
+#### Option 2: [Alternative Pattern Label]
+[Same structure as Option 1]
+
+---
+
+**IMPORTANT CONSTRAINTS:**
+- Keep diagrams focused on the specific capability (not the full system)
+- Use logical pattern names, not vendor-specific services
+- Each option must have BOTH pros AND cons
+- Frame "When to Choose" as conditions, not recommendations
+- If insufficient info to define options, note as "Open Question" and skip
+
+---
+
+{context_section}BASE ARCHITECTURE:
+{base_architecture_md}
+
+---
+
+PRD:
+{prd_markdown}
+
+---
+
+CAPABILITY MAP:
+{capabilities_md}
+
+---
+
+Return ONLY the architecture options in Markdown format.
+Include 2-3 capabilities with 1-2 options each.
+If no capabilities warrant options, return a brief explanation why.
+"""

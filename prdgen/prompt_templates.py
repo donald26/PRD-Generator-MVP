@@ -13,6 +13,9 @@ LOG = logging.getLogger("prdgen.prompt_templates")
 # Default template directory (relative to this file)
 DEFAULT_TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 
+# System prompt directory for file-based prompts (relative to this file)
+SYSTEM_PROMPT_DIR = Path(__file__).parent.parent / "prompts" / "system"
+
 
 class PromptTemplates:
     """Manages system prompts and artifact templates"""
@@ -102,19 +105,43 @@ Rules:
 
 Quality constraints:
 - Stories must be testable and unambiguous.
-- Avoid vague acceptance criteria (e.g., "works correctly", "fast enough")."""
+- Avoid vague acceptance criteria (e.g., "works correctly", "fast enough").""",
+
+        "architecture": """You are a Solutions Architect creating technical architecture documentation.
+
+Rules:
+- Derive architecture ONLY from explicitly stated requirements and capabilities.
+- Do NOT invent components, services, or technologies not implied by the inputs.
+- If information is insufficient to specify a component detail, mark it as "Not specified".
+- Use standard architectural patterns appropriate to the domain.
+- Include AI/ML components (model runtime, RAG, vector DB) ONLY if explicitly mentioned.
+
+Output requirements:
+- Produce structured architecture with components, data flows, and NFRs.
+- Include a Mermaid diagram using flowchart TB (top-bottom) notation.
+- Group components into subgraphs: Client, Core Platform, Data Layer, AI Layer (if applicable), External Integrations.
+- Flag assumptions and open questions explicitly.
+
+Quality constraints:
+- Component IDs must be unique, lowercase, underscore-separated (e.g., user_service).
+- Data flows must reference valid component IDs.
+- Mermaid syntax must be valid and render correctly."""
     }
 
-    def __init__(self, template_dir: Optional[Path] = None):
+    def __init__(self, template_dir: Optional[Path] = None, system_prompt_dir: Optional[Path] = None):
         """
         Initialize prompt template manager.
 
         Args:
             template_dir: Directory containing template files (default: ../templates)
+            system_prompt_dir: Directory containing system prompt files (default: ../prompts/system)
         """
         self.template_dir = template_dir or DEFAULT_TEMPLATE_DIR
+        self.system_prompt_dir = system_prompt_dir or SYSTEM_PROMPT_DIR
         self._templates: Dict[str, str] = {}
+        self._file_prompts: Dict[str, str] = {}
         self._load_templates()
+        self._load_system_prompts_from_files()
 
     def _load_templates(self):
         """Load artifact templates from template directory"""
@@ -139,16 +166,64 @@ Quality constraints:
             else:
                 LOG.warning(f"Template file not found: {filename}")
 
+    def _load_system_prompts_from_files(self):
+        """
+        Load system prompts from the prompts/system/ directory.
+
+        Files are named {artifact_type}.txt and take precedence over
+        hardcoded SYSTEM_PROMPTS for runtime configurability.
+        """
+        if not self.system_prompt_dir.exists():
+            LOG.debug(f"System prompt directory not found: {self.system_prompt_dir}")
+            return
+
+        # Load all .txt files as system prompts
+        for prompt_file in self.system_prompt_dir.glob("*.txt"):
+            artifact_type = prompt_file.stem  # filename without extension
+            try:
+                content = prompt_file.read_text(encoding='utf-8').strip()
+                if content:
+                    self._file_prompts[artifact_type] = content
+                    LOG.info(f"Loaded system prompt from file: {artifact_type}.txt")
+            except Exception as e:
+                LOG.warning(f"Failed to load system prompt {prompt_file.name}: {e}")
+
+    def get_system_prompt_from_file(self, artifact_type: str) -> Optional[str]:
+        """
+        Get system prompt loaded from file, if available.
+
+        Args:
+            artifact_type: The artifact type (e.g., 'architecture')
+
+        Returns:
+            System prompt string or None if not found in files
+        """
+        return self._file_prompts.get(artifact_type)
+
+    def has_system_prompt_file(self, artifact_type: str) -> bool:
+        """Check if a file-based system prompt exists for the artifact type."""
+        return artifact_type in self._file_prompts
+
     def get_system_prompt(self, artifact_type: str) -> str:
         """
         Get system prompt for an artifact type.
 
+        Checks file-based prompts first (from prompts/system/{artifact_type}.txt),
+        then falls back to hardcoded SYSTEM_PROMPTS.
+
         Args:
-            artifact_type: One of: context, summary, prd, features, capabilities, canvas, stories
+            artifact_type: One of: context, summary, prd, features, capabilities, canvas, stories, architecture
 
         Returns:
             System prompt string
         """
+        # Priority 1: File-based prompts (runtime configurable)
+        file_prompt = self._file_prompts.get(artifact_type)
+        if file_prompt:
+            LOG.debug(f"Using file-based system prompt for: {artifact_type}")
+            return file_prompt
+
+        # Priority 2: Hardcoded prompts (fallback)
         prompt = self.SYSTEM_PROMPTS.get(artifact_type)
         if not prompt:
             LOG.warning(f"No system prompt defined for: {artifact_type}")
@@ -200,8 +275,8 @@ Quality constraints:
 
     @classmethod
     def create_default(cls) -> 'PromptTemplates':
-        """Create instance with default template directory"""
-        return cls(DEFAULT_TEMPLATE_DIR)
+        """Create instance with default template and system prompt directories"""
+        return cls(DEFAULT_TEMPLATE_DIR, SYSTEM_PROMPT_DIR)
 
 
 # Global instance for convenience
@@ -229,3 +304,45 @@ def get_template(template_type: str) -> Optional[str]:
 def get_template_structure(template_type: str) -> str:
     """Convenience function to get template structure"""
     return get_default_templates().get_template_structure(template_type)
+
+
+def get_system_prompt_from_file(artifact_type: str) -> Optional[str]:
+    """Convenience function to get file-based system prompt"""
+    return get_default_templates().get_system_prompt_from_file(artifact_type)
+
+
+def has_system_prompt_file(artifact_type: str) -> bool:
+    """Convenience function to check if file-based system prompt exists"""
+    return get_default_templates().has_system_prompt_file(artifact_type)
+
+
+def validate_system_prompt_file(artifact_type: str) -> bool:
+    """
+    Validate that a system prompt file exists and is loadable.
+
+    Args:
+        artifact_type: The artifact type to validate (e.g., 'architecture')
+
+    Returns:
+        True if the file exists and was loaded successfully
+
+    Raises:
+        FileNotFoundError: If the prompt file does not exist
+        ValueError: If the prompt file is empty
+    """
+    prompt_path = SYSTEM_PROMPT_DIR / f"{artifact_type}.txt"
+
+    if not prompt_path.exists():
+        raise FileNotFoundError(f"System prompt file not found: {prompt_path}")
+
+    content = prompt_path.read_text(encoding='utf-8').strip()
+    if not content:
+        raise ValueError(f"System prompt file is empty: {prompt_path}")
+
+    # Verify it's loaded in the cache
+    templates = get_default_templates()
+    if not templates.has_system_prompt_file(artifact_type):
+        # Force reload
+        templates._load_system_prompts_from_files()
+
+    return templates.has_system_prompt_file(artifact_type)

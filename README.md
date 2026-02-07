@@ -109,6 +109,8 @@ The generator produces these files in the output directory:
 | `features.md` | Epic-aware features with acceptance criteria |
 | `user_stories.md` | Developer-ready stories with Gherkin criteria |
 | `lean_canvas.md` | Business model canvas |
+| `architecture_reference.md` | Technical architecture with Mermaid diagram |
+| `architecture_reference.json` | Structured architecture data (JSON) |
 | `run.json` | Generation metadata and timing |
 
 ## Two-Step Intelligent Workflow
@@ -136,14 +138,17 @@ Based on the context analysis, recommends which artifacts to generate:
 | Features | 3+ requirements + personas defined |
 | User Stories | 5+ requirements + personas + technical detail |
 | Lean Canvas | Business-focused with clear problem statement |
+| Technical Architecture | Technical requirements or system design context |
 
 Each recommendation includes a confidence score (0-100) and rationale.
 
 ## Pipeline Structure
 
 ```
-Documents → Context Summary → PRD → Capabilities → Epics → Features → User Stories
-                                                         └→ Lean Canvas
+Documents → Context Summary → PRD → Capabilities → Technical Architecture
+                                         │                    │
+                                         └→ Epics → Features → User Stories
+                                         └→ Lean Canvas
 ```
 
 ## API Reference
@@ -198,7 +203,10 @@ PRD-Generator-MVP/
 │   ├── model.py           # Model loading
 │   ├── prompts.py         # LLM prompts
 │   ├── ingest.py          # Document ingestion
-│   └── recommendation.py  # Artifact recommendation logic
+│   ├── architecture.py    # Architecture diagram utilities
+│   ├── recommendation.py  # Artifact recommendation logic
+│   └── schemas/           # JSON schemas for structured output
+│       └── architecture_schema.py
 ├── backend/               # FastAPI web backend
 │   ├── app/
 │   │   ├── main.py        # FastAPI app
@@ -243,9 +251,36 @@ artifacts, metadata = generate_artifacts_selective(model, cfg, docs)
 |--------|-------------|---------|
 | `enable_context_summary` | Generate context assessment first | `True` |
 | `enable_recommendation` | Use intelligent recommendations | `True` |
+| `enable_architecture_diagram` | Generate technical architecture with Mermaid diagram | `True` |
+| `enable_architecture_options` | Generate alternative architecture patterns per capability | `False` |
 | `generate_only` | Override: generate only these artifacts | `None` |
 | `default_set` | Fallback artifact set (`minimal`, `business`, `development`, `complete`) | `business` |
 | `use_cache` | Cache intermediate results | `True` |
+
+## Architecture Options (Optional)
+
+When `enable_architecture_options=True`, the generator produces alternative architecture patterns for key capabilities. This is useful for:
+- **Consultant discussions** - Present trade-offs to stakeholders
+- **Decision documentation** - Capture why certain patterns were chosen
+- **Solution exploration** - Compare sync vs async, centralized vs distributed approaches
+
+**Example usage:**
+```python
+cfg = GenerationConfig(
+    enable_architecture_diagram=True,
+    enable_architecture_options=True,  # Enable alternative patterns
+)
+```
+
+**Output includes:**
+- Primary reference architecture (always generated)
+- "Architecture Options by Capability" section with:
+  - 1-2 alternative patterns per capability
+  - Explicit assumptions and trade-offs (pros/cons table)
+  - "When to choose" guidance (non-prescriptive)
+  - Mermaid diagram for each option
+
+**Important:** Options are illustrative reference patterns, not recommendations. Each option explicitly states assumptions and trade-offs for stakeholder review.
 
 ## Troubleshooting
 

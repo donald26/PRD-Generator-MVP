@@ -27,3 +27,8 @@ outputs/*/
 # OS
 .DS_Store
 Thumbs.db
+
+backend/outputs/
+
+prdgen/__pycache__/*.pyc
+
