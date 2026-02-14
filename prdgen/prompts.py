@@ -701,3 +701,261 @@ Return ONLY the architecture options in Markdown format.
 Include 2-3 capabilities with 1-2 options each.
 If no capabilities warrant options, return a brief explanation why.
 """
+
+
+# ---------------------------------------------------------------------------
+# Modernization-specific prompts
+# ---------------------------------------------------------------------------
+
+def capabilities_modernization_prompt(
+    prd_markdown: str,
+    context_summary_md: str,
+    intake_context_md: str,
+) -> str:
+    """
+    Modernization-path capabilities prompt.
+    Uses the Capability_Assessment_Template.md structure.
+    Produces: Pillar Overview + Detailed Assessment Tables + Gap Summary.
+    """
+    template_structure = get_template_structure("capability_assessment")
+
+    return f"""You are a Transformation Architect conducting a capability assessment
+for a system modernization initiative.
+
+Your task is to produce a complete Capability Assessment Framework following the
+template structure below.
+
+IMPORTANT: Follow the template structure provided.
+
+{template_structure}
+
+Guidelines for Transformation Pillars:
+- Derive 3-6 pillars from the DOMAIN described in the documents
+- Each pillar needs a mission statement (1-2 sentences)
+- Pillars should cover: business process, technology/platform, data, people/org,
+  and customer experience dimensions AS RELEVANT to the domain
+- Do NOT use the generic pillar names from any reference -- derive from context
+
+Guidelines for Maturity Assessment:
+- Use ONLY these four levels: Non-Existent, Lagging, On Par, Leading
+- Current State: base on pain points, constraints, current-system descriptions
+- Maturity (Current): rate based on explicit evidence in the documents
+- Maturity (Target): derive from stated goals and desired outcomes
+- Desired Future State: derive from vision, goals, and outcome statements
+- If evidence is insufficient, mark as "Unknown" and note in Gap Summary
+
+Guidelines for Gap Summary:
+- Group gaps by severity: Critical (Non-Existent->Leading), Major (Lagging->Leading),
+  Incremental (On Par->Leading)
+- Each gap should be a single actionable line
+
+INPUT DOCUMENTS:
+
+INTAKE CONTEXT (Modernization Questionnaire):
+{intake_context_md}
+
+CONTEXT SUMMARY:
+{context_summary_md}
+
+PRD:
+{prd_markdown}
+
+Return ONLY the Capability Assessment Framework in Markdown following the template.
+"""
+
+
+def capability_cards_modernization_prompt(
+    prd_markdown: str,
+    capabilities_md: str,
+    l1_names: list,
+    intake_context_md: str,
+) -> str:
+    """
+    Modernization-path capability cards with migration-specific sections.
+    Uses Capability_Card_Modernization_Template.md structure.
+    """
+    template_structure = get_template_structure("capability_card_modernization")
+    l1_list = "\n".join([f"- {n}" for n in l1_names])
+
+    return f"""You are a Transformation Architect creating modernization capability cards.
+
+You MUST produce exactly ONE card per L1 capability listed below.
+
+IMPORTANT: Follow the Modernization Capability Card Template provided.
+
+{template_structure}
+
+Guidelines:
+- Current State Assessment: summarise from the capability assessment tables
+- Migration Approach: recommend based on the capability's current maturity,
+  complexity, and dependencies. Use standard patterns (strangler-fig, big-bang,
+  parallel-run, phased cutover).
+- Quick Wins: improvements achievable in 0-3 months with minimal risk
+- Long-term Investments: changes requiring 3-12+ months of sustained effort
+- Legacy Dependencies: specific systems/components that must be decommissioned
+  and the trigger condition for decommission
+- Transition Risks: be specific, include impact level (H/M/L) and mitigation
+
+L1 CAPABILITIES (EXACT NAMES):
+{l1_list}
+
+INTAKE CONTEXT:
+{intake_context_md}
+
+CAPABILITY ASSESSMENT:
+{capabilities_md}
+
+PRD:
+{prd_markdown}
+
+Return ONLY the capability cards in Markdown following the template structure.
+"""
+
+
+# ---------------------------------------------------------------------------
+# Roadmap prompts
+# ---------------------------------------------------------------------------
+
+def roadmap_prompt(prd_markdown: str, epics_md: str, features_md: str) -> str:
+    """Generate a delivery roadmap from PRD, epics, and features."""
+    return f"""You are a Product Strategist and Delivery Lead creating a delivery roadmap.
+
+From the PRD, Epics, and Features below, produce a phased delivery roadmap.
+
+Output format:
+
+## Delivery Roadmap
+
+### Release Strategy
+[1-2 paragraphs on overall approach]
+
+### Phase MVP (Must-Have)
+**Scope:** [1-2 sentences]
+**Epics Included:**
+- EP-XXX: [Epic Name] - [rationale for MVP inclusion]
+
+**Key Features:**
+- F-XXX: [Feature Name]
+
+**Success Criteria:** [measurable criteria for MVP sign-off]
+
+### Phase 1: [Theme Name]
+[Same structure as MVP]
+
+### Phase 2: [Theme Name]
+[Same structure]
+
+### Phase 3+: [Future / Backlog]
+[Items deferred with rationale]
+
+### Dependency Map
+| Epic | Depends On | Blocking | Critical Path |
+|------|-----------|----------|---------------|
+| EP-XXX | EP-YYY | EP-ZZZ | Yes/No |
+
+### Risk-Adjusted Considerations
+- [Risk 1]: [impact on timeline]
+- [Risk 2]: [impact on timeline]
+
+Hard rules:
+- Every epic must appear in exactly one phase
+- MVP should be the minimal set that delivers core value
+- Dependencies must be respected in phase ordering
+- Do NOT invent timelines or team sizes not in the inputs
+- If timeline info is missing, use relative sequencing only
+
+INPUT DOCUMENTS:
+
+PRD:
+{prd_markdown}
+
+EPICS:
+{epics_md}
+
+FEATURES:
+{features_md}
+
+Return ONLY the roadmap in Markdown.
+"""
+
+
+def roadmap_modernization_prompt(
+    prd_markdown: str,
+    epics_md: str,
+    features_md: str,
+    intake_context_md: str,
+) -> str:
+    """Modernization roadmap variant with migration wave sequencing."""
+    return f"""You are a Transformation Lead creating a modernization delivery roadmap.
+
+From the PRD, Epics, Features, and Modernization Context below, produce a phased
+migration roadmap.
+
+Output format:
+
+## Modernization Delivery Roadmap
+
+### Migration Strategy Overview
+[1-2 paragraphs on overall migration approach]
+
+### Wave 1: Foundation & Quick Wins
+**Scope:** [1-2 sentences]
+**Epics Included:**
+- EP-XXX: [Epic Name] - [rationale]
+
+**Migration Pattern:** [strangler-fig / parallel-run / phased cutover]
+**Legacy Systems Affected:** [list]
+**Success Criteria:** [measurable criteria]
+
+### Wave 2: Core Modernization
+[Same structure]
+
+### Wave 3: Advanced Capabilities
+[Same structure]
+
+### Wave 4+: Optimization & Decommission
+[Items deferred with rationale]
+
+### Legacy Decommission Milestones
+| Legacy System | Decommission Trigger | Target Wave | Risk |
+|---------------|---------------------|-------------|------|
+| [system] | [condition] | Wave N | H/M/L |
+
+### Cutover Gates
+| Gate | Criteria | Go/No-Go Decision Point |
+|------|----------|------------------------|
+| [gate name] | [criteria] | [when] |
+
+### Dependency Map
+| Epic | Depends On | Blocking | Critical Path |
+|------|-----------|----------|---------------|
+| EP-XXX | EP-YYY | EP-ZZZ | Yes/No |
+
+### Risk-Adjusted Considerations
+- [Risk 1]: [impact on migration timeline]
+- [Risk 2]: [impact on migration timeline]
+
+Hard rules:
+- Every epic must appear in exactly one wave
+- Wave 1 should prioritize quick wins and foundation work
+- Dependencies must be respected in wave ordering
+- Include legacy decommission milestones
+- Include cutover gates for parallel-run scenarios
+- Do NOT invent timelines or team sizes not in the inputs
+
+INPUT DOCUMENTS:
+
+PRD:
+{prd_markdown}
+
+EPICS:
+{epics_md}
+
+FEATURES:
+{features_md}
+
+MODERNIZATION CONTEXT:
+{intake_context_md}
+
+Return ONLY the roadmap in Markdown.
+"""

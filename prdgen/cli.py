@@ -3,8 +3,11 @@ import json
 import logging
 from pathlib import Path
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from .config import GenerationConfig
-from .model import load_llama
+from .model import load_provider
 from .generator import generate_prd_and_features, generate_from_folder
 from .utils import read_text, write_text
 from .ingest import ingest_folder
@@ -21,9 +24,11 @@ def main():
     src.add_argument("--input-dir", help="Path to a folder containing multiple documents (folder mode)")
 
     ap.add_argument("--outdir", default="out", help="Output directory")
-    ap.add_argument("--model-id", default="Qwen/Qwen2.5-1.5B-Instruct", help="HF model id (default: Qwen 1.5B Instruct)")
-    ap.add_argument("--device", choices=["cpu", "cuda"], default="cpu", help="Device (cuda requires NVIDIA GPU)")
-    ap.add_argument("--dtype", choices=["auto", "float16", "bfloat16", "float32"], default="auto", help="Torch dtype")
+    ap.add_argument("--provider", choices=["local", "gemini"], default="local", help="Model provider (default: local)")
+    ap.add_argument("--gemini-model", default="gemini-2.0-flash", help="Gemini model name (default: gemini-2.0-flash)")
+    ap.add_argument("--model-id", default="Qwen/Qwen2.5-1.5B-Instruct", help="HF model id for local provider (default: Qwen 1.5B Instruct)")
+    ap.add_argument("--device", choices=["cpu", "cuda"], default="cpu", help="Device for local provider (cuda requires NVIDIA GPU)")
+    ap.add_argument("--dtype", choices=["auto", "float16", "bfloat16", "float32"], default="auto", help="Torch dtype for local provider")
 
     ap.add_argument("--max-new-tokens", type=int, default=800, help="Upper bound for PRD generation (demo-safe default)")
     ap.add_argument("--temperature", type=float, default=0.5)
@@ -47,6 +52,8 @@ def main():
     outdir.mkdir(parents=True, exist_ok=True)
 
     cfg = GenerationConfig(
+        provider=args.provider,
+        gemini_model=args.gemini_model,
         model_id=args.model_id,
         device=args.device,
         dtype=args.dtype,
@@ -56,8 +63,8 @@ def main():
         repetition_penalty=args.repetition_penalty,
     )
 
-    LOG.info("Loading model (first time may download weights)...")
-    loaded = load_llama(cfg.model_id, device=cfg.device, dtype=cfg.dtype)
+    LOG.info("Loading model provider: %s", cfg.provider)
+    loaded = load_provider(cfg)
 
     if args.input_dir:
         LOG.info("Ingesting folder: %s", args.input_dir)

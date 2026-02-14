@@ -4,7 +4,7 @@ from typing import Dict, Any, Tuple, List, Optional, Callable
 from pathlib import Path
 
 from .config import GenerationConfig, as_dict
-from .model import LoadedModel, build_chat_input, generate_text
+from .model import ModelProvider, LoadedModel, build_chat_input, generate_text
 from .prompts import (
     context_assessment_prompt,
     corpus_summarize_prompt,
@@ -17,13 +17,20 @@ from .prompts import (
     user_stories_prompt,
     architecture_prompt,
     architecture_options_prompt,
+    capabilities_modernization_prompt,
+    capability_cards_modernization_prompt,
+    roadmap_prompt,
+    roadmap_modernization_prompt,
     PRD_OUTLINE,
 )
 from .utils import ensure_sections, strip_trailing_noise, validate_output
 from .ingest import IngestedDoc, format_corpus
 from .context_summary import parse_context_summary_markdown, save_context_summary_json
 from .prompt_templates import get_system_prompt
-from .capability_cards import extract_l1_names, ensure_cards_for_l1
+from .capability_cards import (
+    extract_l1_names, ensure_cards_for_l1,
+    extract_l1_names_modernization, ensure_modernization_cards,
+)
 from .epics import ensure_epics_for_all_l1, add_epic_summary_header, extract_epic_ids
 from .features import add_feature_summary_header, ensure_features_for_epics, extract_feature_ids
 from .stories import add_story_summary_header, ensure_stories_for_features
@@ -49,9 +56,11 @@ SYSTEM_CANVAS = get_system_prompt("canvas")
 SYSTEM_STORIES = get_system_prompt("stories")
 SYSTEM_ARCHITECTURE = get_system_prompt("architecture")
 SYSTEM_ARCHITECTURE_OPTIONS = get_system_prompt("architecture_options")
+SYSTEM_CAPS_MODERNIZATION = get_system_prompt("capabilities_modernization")
+SYSTEM_ROADMAP = get_system_prompt("roadmap")
 
 def _run_step(
-    loaded: LoadedModel,
+    loaded,  # ModelProvider or LoadedModel (backward compat)
     system: str,
     user_prompt: str,
     cfg: GenerationConfig,
@@ -62,17 +71,27 @@ def _run_step(
     LOG.info(f"▶ Starting: {step_name}")
     LOG.debug(f"  Input prompt: {len(user_prompt)} chars, max_tokens={max_new_tokens}, temp={temperature}")
 
-    prompt = build_chat_input(loaded.tokenizer, system, user_prompt)
-    LOG.debug(f"  Full prompt: {len(prompt)} chars")
-
-    out = generate_text(
-        loaded,
-        prompt,
-        max_new_tokens=max_new_tokens,
-        temperature=temperature,
-        top_p=cfg.top_p,
-        repetition_penalty=cfg.repetition_penalty,
-    )
+    if isinstance(loaded, ModelProvider):
+        out = loaded.generate(
+            system=system,
+            user_prompt=user_prompt,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            top_p=cfg.top_p,
+            repetition_penalty=cfg.repetition_penalty,
+        )
+    else:
+        # Legacy path: raw LoadedModel
+        prompt = build_chat_input(loaded.tokenizer, system, user_prompt)
+        LOG.debug(f"  Full prompt: {len(prompt)} chars")
+        out = generate_text(
+            loaded,
+            prompt,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            top_p=cfg.top_p,
+            repetition_penalty=cfg.repetition_penalty,
+        )
 
     # Validate and clean output
     out = validate_output(out, step_name)
@@ -321,15 +340,31 @@ class ArtifactGenerator:
         self._report_progress(artifact_type, "processing", 0, "Generating capability map...")
 
         t0 = time.time()
-        caps_md = _run_step(
-            self.loaded,
-            SYSTEM_CAPS,
-            capabilities_prompt(prd_md),
-            self.cfg,
-            max_new_tokens=min(self.cfg.max_new_tokens, 900),
-            temperature=max(self.cfg.temperature - 0.2, 0.3),
-            step_name="capabilities",
-        )
+
+        # Route to modernization prompt if flow_type is modernization
+        if getattr(self.cfg, 'flow_type', 'greenfield') == "modernization":
+            context_md = self.cache.get(ArtifactType.CONTEXT_SUMMARY) or ""
+            intake_md = self._get_intake_context()
+            caps_md = _run_step(
+                self.loaded,
+                SYSTEM_CAPS_MODERNIZATION,
+                capabilities_modernization_prompt(prd_md, context_md, intake_md),
+                self.cfg,
+                max_new_tokens=2000,  # larger: assessment tables are verbose
+                temperature=max(self.cfg.temperature - 0.2, 0.3),
+                step_name="capabilities_modernization",
+            )
+        else:
+            caps_md = _run_step(
+                self.loaded,
+                SYSTEM_CAPS,
+                capabilities_prompt(prd_md),
+                self.cfg,
+                max_new_tokens=min(self.cfg.max_new_tokens, 900),
+                temperature=max(self.cfg.temperature - 0.2, 0.3),
+                step_name="capabilities",
+            )
+
         elapsed = round(time.time() - t0, 3)
         self.meta["timings"]["capabilities_seconds"] = elapsed
 
@@ -363,18 +398,34 @@ class ArtifactGenerator:
         self._report_progress(artifact_type, "processing", 0, "Generating capability cards...")
 
         t0 = time.time()
-        l1_names = extract_l1_names(caps_md)
-        LOG.info(f"  Found {len(l1_names)} L1 capabilities")
-        cards_md = _run_step(
-            self.loaded,
-            SYSTEM_CAPS,
-            capability_cards_prompt(prd_md, caps_md, l1_names),
-            self.cfg,
-            max_new_tokens=900,
-            temperature=max(self.cfg.temperature - 0.2, 0.3),
-            step_name="capability_cards",
-        )
-        cards_md = ensure_cards_for_l1(cards_md, l1_names)
+
+        if getattr(self.cfg, 'flow_type', 'greenfield') == "modernization":
+            l1_names = extract_l1_names_modernization(caps_md)
+            LOG.info(f"  Found {len(l1_names)} L1 capabilities (modernization)")
+            intake_md = self._get_intake_context()
+            cards_md = _run_step(
+                self.loaded,
+                SYSTEM_CAPS_MODERNIZATION,
+                capability_cards_modernization_prompt(prd_md, caps_md, l1_names, intake_md),
+                self.cfg,
+                max_new_tokens=1400,
+                temperature=max(self.cfg.temperature - 0.2, 0.3),
+                step_name="capability_cards_modernization",
+            )
+            cards_md = ensure_modernization_cards(cards_md, l1_names)
+        else:
+            l1_names = extract_l1_names(caps_md)
+            LOG.info(f"  Found {len(l1_names)} L1 capabilities")
+            cards_md = _run_step(
+                self.loaded,
+                SYSTEM_CAPS,
+                capability_cards_prompt(prd_md, caps_md, l1_names),
+                self.cfg,
+                max_new_tokens=900,
+                temperature=max(self.cfg.temperature - 0.2, 0.3),
+                step_name="capability_cards",
+            )
+            cards_md = ensure_cards_for_l1(cards_md, l1_names)
         elapsed = round(time.time() - t0, 3)
         self.meta["timings"]["capability_cards_seconds"] = elapsed
 
@@ -567,6 +618,70 @@ class ArtifactGenerator:
         LOG.info(f"✓ {artifact_type.value} complete: {len(canvas_md)} chars in {elapsed}s")
         return canvas_md
 
+    def generate_roadmap(self) -> str:
+        """Generate Delivery Roadmap"""
+        artifact_type = ArtifactType.ROADMAP
+
+        if self.cache.has(artifact_type):
+            LOG.info(f"✓ Using cached {artifact_type.value}")
+            self._report_progress(artifact_type, "completed", 100, "Using cached version")
+            self.meta["cache_hits"] += 1
+            return self.cache.get(artifact_type)
+
+        # Dependencies
+        prd_md = self.generate_prd()
+        epics_md = self.generate_epics()
+        features_md = self.generate_features()
+
+        LOG.info("=" * 70)
+        LOG.info(f"GENERATING: {artifact_type.value}")
+        LOG.info(f"Dependencies: prd, epics, features")
+        LOG.info("=" * 70)
+
+        self.meta["cache_misses"] += 1
+        self._report_progress(artifact_type, "processing", 0, "Generating delivery roadmap...")
+
+        t0 = time.time()
+
+        if getattr(self.cfg, 'flow_type', 'greenfield') == "modernization":
+            intake_md = self._get_intake_context()
+            rm_md = _run_step(
+                self.loaded,
+                SYSTEM_ROADMAP,
+                roadmap_modernization_prompt(prd_md, epics_md, features_md, intake_md),
+                self.cfg,
+                max_new_tokens=1200,
+                temperature=max(self.cfg.temperature - 0.1, 0.3),
+                step_name="roadmap_modernization",
+            )
+        else:
+            rm_md = _run_step(
+                self.loaded,
+                SYSTEM_ROADMAP,
+                roadmap_prompt(prd_md, epics_md, features_md),
+                self.cfg,
+                max_new_tokens=1000,
+                temperature=max(self.cfg.temperature - 0.1, 0.3),
+                step_name="roadmap",
+            )
+
+        elapsed = round(time.time() - t0, 3)
+        self.meta["timings"]["roadmap_seconds"] = elapsed
+
+        self.cache.set(artifact_type, rm_md)
+        self._save_artifact(artifact_type, rm_md)
+        self._report_progress(artifact_type, "completed", 100, f"Completed in {elapsed}s")
+
+        LOG.info(f"✓ {artifact_type.value} complete: {len(rm_md)} chars in {elapsed}s")
+        return rm_md
+
+    def _get_intake_context(self) -> str:
+        """Get formatted questionnaire context from config."""
+        if getattr(self.cfg, 'questionnaire_answers', None):
+            from .intake.questionnaire import format_answers_as_context
+            return format_answers_as_context(self.cfg.flow_type, self.cfg.questionnaire_answers)
+        return ""
+
     def generate_technical_architecture(self) -> str:
         """Generate Technical Architecture Reference Diagram"""
         artifact_type = ArtifactType.TECHNICAL_ARCHITECTURE
@@ -752,6 +867,7 @@ class ArtifactGenerator:
             ArtifactType.CAPABILITY_CARDS: self.generate_capability_cards,
             ArtifactType.EPICS: self.generate_epics,
             ArtifactType.FEATURES: self.generate_features,
+            ArtifactType.ROADMAP: self.generate_roadmap,
             ArtifactType.USER_STORIES: self.generate_user_stories,
             ArtifactType.LEAN_CANVAS: self.generate_lean_canvas,
         }

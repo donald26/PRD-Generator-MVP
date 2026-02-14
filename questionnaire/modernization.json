@@ -1,0 +1,212 @@
+{
+  "path_type": "modernization",
+  "version": "v1",
+  "title": "Legacy Platform Modernization Intake",
+  "description": "Guided intake to capture current state, target state, deltas, migration constraints, and modernization strategy.",
+  "sections": [
+    {
+      "id": "system_overview",
+      "title": "Current System Overview",
+      "questions": [
+        {
+          "id": "mz_system_name_scope",
+          "section": "product",
+          "question_text": "What system/platform is being modernized? Define scope boundaries (what’s in/out).",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["current_state.system_overview", "scope.in_scope", "scope.out_of_scope"]
+        },
+        {
+          "id": "mz_current_users",
+          "section": "product",
+          "question_text": "Who uses the system today (personas/user groups) and what do they rely on most?",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["personas", "current_state.user_groups"]
+        },
+        {
+          "id": "mz_current_capabilities",
+          "section": "product",
+          "question_text": "List the system’s current capabilities (what it does today). If you have a capability list, paste it.",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["current_state.capabilities", "capabilities_current_seed"]
+        }
+      ]
+    },
+    {
+      "id": "pain_points_drivers",
+      "title": "Drivers & Pain Points",
+      "questions": [
+        {
+          "id": "mz_pain_points",
+          "section": "product",
+          "question_text": "What are the top pain points driving modernization (performance, cost, stability, velocity, security, UX)?",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["current_state.pain_points"]
+        },
+        {
+          "id": "mz_objectives",
+          "section": "product",
+          "question_text": "What are the modernization objectives (business + technical) and success metrics?",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["objectives", "success_metrics"]
+        }
+      ]
+    },
+    {
+      "id": "current_architecture_ops",
+      "title": "Current Architecture & Operations",
+      "questions": [
+        {
+          "id": "mz_arch_summary",
+          "section": "technology",
+          "question_text": "Summarize current architecture (monolith/services, data stores, integrations, hosting/on-prem/cloud).",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["current_state.architecture.summary"]
+        },
+        {
+          "id": "mz_integrations",
+          "section": "technology",
+          "question_text": "List critical integrations and dependencies (upstream/downstream systems, identity, messaging, ETL).",
+          "input_type": "multiline_text",
+          "required": false,
+          "mapping": ["integrations", "dependencies"]
+        },
+        {
+          "id": "mz_ops_incidents",
+          "section": "process",
+          "question_text": "Operational issues: incidents, outages, manual toil, monitoring gaps, on-call pain. Any SLOs today?",
+          "input_type": "multiline_text",
+          "required": false,
+          "mapping": ["current_state.operations", "nfrs.reliability", "risks"]
+        }
+      ]
+    },
+    {
+      "id": "target_state",
+      "title": "Target State (Future)",
+      "questions": [
+        {
+          "id": "mz_target_capabilities",
+          "section": "product",
+          "question_text": "What capabilities should be enhanced vs net-new? Describe desired future capabilities.",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["future_state.capabilities", "capabilities_future_seed"]
+        },
+        {
+          "id": "mz_compatibility_requirements",
+          "section": "product",
+          "question_text": "What must remain the same (backward compatibility, APIs, data contracts, workflows)?",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["constraints.compatibility"]
+        },
+        {
+          "id": "mz_target_nfrs",
+          "section": "technology",
+          "question_text": "Target NFRs: availability, performance, security, compliance, observability. Provide targets if known.",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["nfrs.availability", "nfrs.performance", "nfrs.security", "nfrs.compliance", "nfrs.observability"]
+        }
+      ]
+    },
+    {
+      "id": "migration_strategy",
+      "title": "Migration Strategy & Constraints",
+      "questions": [
+        {
+          "id": "mz_data_migration",
+          "section": "technology",
+          "question_text": "Data migration needs: volume, downtime tolerance, data quality, archival, retention, PII handling.",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["migration.data", "constraints.data"]
+        },
+        {
+          "id": "mz_cutover_preference",
+          "section": "process",
+          "question_text": "Preferred cutover approach?",
+          "input_type": "single_select",
+          "required": true,
+          "options": ["Big Bang", "Phased / Strangler", "Parallel Run", "Unknown/To be defined"],
+          "mapping": ["migration.cutover_strategy"]
+        },
+        {
+          "id": "mz_release_constraints",
+          "section": "process",
+          "question_text": "Release/process constraints: change windows, approvals, environment constraints, CI/CD maturity.",
+          "input_type": "multiline_text",
+          "required": false,
+          "mapping": ["current_state.delivery_process", "constraints.process"]
+        },
+        {
+          "id": "mz_cloud_stance",
+          "section": "technology",
+          "question_text": "Cloud stance / deployment preference?",
+          "input_type": "single_select",
+          "required": false,
+          "options": ["Cloud SaaS", "Hybrid", "On-prem/VPC", "Unknown/To be defined"],
+          "mapping": ["constraints.deployment", "target_state.deployment"]
+        }
+      ]
+    },
+    {
+      "id": "people_process",
+      "title": "People & Org",
+      "questions": [
+        {
+          "id": "mz_teams",
+          "section": "people",
+          "question_text": "Which teams own the system today and who will own it in the future? Any skill gaps?",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["stakeholders", "current_state.team", "risks"]
+        },
+        {
+          "id": "mz_change_mgmt",
+          "section": "people",
+          "question_text": "Change management constraints: training, comms, client users, support model changes?",
+          "input_type": "multiline_text",
+          "required": false,
+          "mapping": ["constraints.change_management", "risks"]
+        }
+      ]
+    },
+    {
+      "id": "delta_open_questions",
+      "title": "Deltas, Risks & Open Questions",
+      "questions": [
+        {
+          "id": "mz_delta_priorities",
+          "section": "product",
+          "question_text": "What are the most critical deltas between current and target state (capability gaps + NFR gaps)?",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["delta.capabilities", "delta.nfrs"]
+        },
+        {
+          "id": "mz_known_risks",
+          "section": "product",
+          "question_text": "Known modernization risks (data migration, downtime, compatibility, security, cost, delivery).",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["risks"]
+        },
+        {
+          "id": "mz_open_questions",
+          "section": "product",
+          "question_text": "Key open questions that must be answered before finalizing the modernization plan.",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["open_questions"]
+        }
+      ]
+    }
+  ]
+}

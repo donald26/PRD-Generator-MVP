@@ -16,6 +16,7 @@ class ArtifactType(str, Enum):
     USER_STORIES = "user_stories"
     LEAN_CANVAS = "lean_canvas"
     TECHNICAL_ARCHITECTURE = "technical_architecture"
+    ROADMAP = "roadmap"
 
 # Predefined artifact sets for common use cases
 ARTIFACT_SETS: Dict[str, Set[ArtifactType]] = {
@@ -36,6 +37,7 @@ ARTIFACT_SETS: Dict[str, Set[ArtifactType]] = {
         ArtifactType.CAPABILITY_CARDS,
         ArtifactType.EPICS,
         ArtifactType.FEATURES,
+        ArtifactType.ROADMAP,
         ArtifactType.TECHNICAL_ARCHITECTURE,
     },
     "complete": {  # All artifacts
@@ -45,6 +47,7 @@ ARTIFACT_SETS: Dict[str, Set[ArtifactType]] = {
         ArtifactType.CAPABILITY_CARDS,
         ArtifactType.EPICS,
         ArtifactType.FEATURES,
+        ArtifactType.ROADMAP,
         ArtifactType.USER_STORIES,
         ArtifactType.LEAN_CANVAS,
         ArtifactType.TECHNICAL_ARCHITECTURE,
@@ -63,6 +66,7 @@ ARTIFACT_NAMES: Dict[ArtifactType, str] = {
     ArtifactType.USER_STORIES: "User Stories",
     ArtifactType.LEAN_CANVAS: "Lean Canvas",
     ArtifactType.TECHNICAL_ARCHITECTURE: "Technical Architecture Reference",
+    ArtifactType.ROADMAP: "Delivery Roadmap",
 }
 
 # File names for each artifact
@@ -77,6 +81,7 @@ ARTIFACT_FILENAMES: Dict[ArtifactType, str] = {
     ArtifactType.USER_STORIES: "user_stories.md",
     ArtifactType.LEAN_CANVAS: "lean_canvas.md",
     ArtifactType.TECHNICAL_ARCHITECTURE: "architecture_reference.md",
+    ArtifactType.ROADMAP: "roadmap.md",
 }
 
 def get_artifact_set(name: str) -> Set[ArtifactType]:

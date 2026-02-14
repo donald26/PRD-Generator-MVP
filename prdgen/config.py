@@ -2,16 +2,26 @@ from dataclasses import dataclass, field
 from typing import Dict, Any, Set, Optional
 from pathlib import Path
 
+
 @dataclass
 class GenerationConfig:
-    # Existing model configuration
+    # Provider selection: "local" (HF/torch) or "gemini" (Google hosted)
+    provider: str = "local"  # env override: PRDGEN_PROVIDER
+
+    # Local model configuration (used when provider="local")
     model_id: str = "Qwen/Qwen2.5-1.5B-Instruct"
     device: str = "cpu"  # "cpu" or "cuda"
     dtype: str = "auto"  # "auto", "float16", "bfloat16", "float32"
+
+    # Gemini configuration (used when provider="gemini")
+    gemini_model: str = "gemini-2.0-flash"
+    gemini_api_key: Optional[str] = None  # env override: GOOGLE_API_KEY
+
+    # Generation parameters (shared across providers)
     max_new_tokens: int = 1400
     temperature: float = 0.6
     top_p: float = 0.9
-    repetition_penalty: float = 1.05
+    repetition_penalty: float = 1.05  # local-only; ignored by Gemini
     prd_min_sections: int = 10
     write_debug: bool = True
 
@@ -44,6 +54,13 @@ class GenerationConfig:
 
     # NEW: Template Management
     template_dir: Optional[Path] = None  # Custom template directory (None = use default templates/)
+
+    # Phased generation (opt-in, default=False preserves existing behavior)
+    phase_mode: bool = False
+    flow_type: str = "greenfield"               # "greenfield" | "modernization"
+    questionnaire_answers: Optional[Dict[str, str]] = None
+    current_phase: Optional[int] = None          # 1, 2, or 3
+    prior_snapshot_dir: Optional[Path] = None    # where to load approved snapshots
 
 def as_dict(cfg: GenerationConfig) -> Dict[str, Any]:
     return {

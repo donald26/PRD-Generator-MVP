@@ -13,6 +13,9 @@ venv/
 env/
 .venv/
 
+# Environment variables
+.env
+
 # Temporary files
 temp/
 outputs/*.zip
@@ -29,6 +32,12 @@ outputs/*/
 Thumbs.db
 
 backend/outputs/
+*.db
 
 prdgen/__pycache__/*.pyc
 
+prdgen/__pycache__/config.cpython-310.pyc
+prdgen/__pycache__/generator.cpython-310.pyc
+prdgen/__pycache__/model.cpython-310.pyc
+prdgen/__pycache__/prompts.cpython-310.pyc
+prdgen/__pycache__/utils.cpython-310.pyc

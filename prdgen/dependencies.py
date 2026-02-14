@@ -54,6 +54,11 @@ class ArtifactDependencyResolver:
             ArtifactType.PRD,
             ArtifactType.CAPABILITIES,
         ],
+        ArtifactType.ROADMAP: [
+            ArtifactType.PRD,
+            ArtifactType.EPICS,
+            ArtifactType.FEATURES,
+        ],
     }
 
     # Canonical generation order (topologically sorted)
@@ -66,6 +71,7 @@ class ArtifactDependencyResolver:
         ArtifactType.CAPABILITY_CARDS,
         ArtifactType.EPICS,
         ArtifactType.FEATURES,
+        ArtifactType.ROADMAP,
         ArtifactType.USER_STORIES,
         ArtifactType.LEAN_CANVAS,
     ]

@@ -1,288 +1,282 @@
 # PRD Generator
 
-Transform high-level product intent into comprehensive PRD artifacts using local LLMs (Hugging Face models).
+Transform product intent documents into comprehensive PRD artifacts using a guided, phased generation workflow with human-in-the-loop approval gates.
 
 ## Features
 
-- **Multi-format input**: Supports `.txt`, `.md`, `.log`, `.docx` files
-- **Intelligent two-step workflow**: Analyzes documents first, then recommends which artifacts to generate
-- **Comprehensive output**: PRD, Capabilities, Epics, Features, User Stories, Lean Canvas
-- **CLI and Web Interface**: Use via command line or browser-based UI
-- **Local LLM**: Runs entirely on your machine using Hugging Face models (Qwen default)
-- **Configurable**: Choose model, temperature, tokens, and which artifacts to generate
+- **Two-path flow**: Greenfield (new product) or Modernization (existing system)
+- **Guided questionnaire**: Dynamic intake form tailored to flow type
+- **3-phase generation with HITL gates**: Each phase requires human approval before the next begins
+- **Dual model support**: Run locally (HuggingFace/torch) or via Google Gemini API
+- **Assessment Pack export**: Download all approved artifacts as a single ZIP
+- **Web UI + CLI**: Browser-based SPA or command-line interface
 
 ## Quick Start
 
 ### Prerequisites
 
 - Python 3.10+
-- 8GB+ RAM (16GB recommended for larger models)
-- For gated LLaMA models: `huggingface-cli login`
+- 8GB+ RAM (for local model) or a Google Gemini API key (for hosted model)
 
 ### Installation
 
 ```bash
-# Clone the repository
-cd PRD-Generator-MVP
-
 # Create and activate virtual environment
-python3 -m venv .venv
-source .venv/bin/activate  # macOS/Linux
-# .venv\Scripts\activate   # Windows PowerShell
+python3 -m venv venv
+source venv/bin/activate
+
+# Install PyTorch CPU-only (skip if using Gemini only)
+pip install torch --index-url https://download.pytorch.org/whl/cpu
 
 # Install all dependencies
-pip install -r requirements.txt
-pip install -r backend/requirements.txt
-
-# Verify installation
-python3 -c "import fastapi; import torch; print('All dependencies installed!')"
+pip install -r requirements.txt -r backend/requirements.txt
 ```
 
-## Usage
+### Start the backend
 
-### Option 1: Command Line Interface
-
-**Single file input:**
 ```bash
-python -m prdgen.cli \
-  --input examples/intent_analytics.txt \
-  --outdir out \
-  --model-id Qwen/Qwen2.5-1.5B-Instruct
+uvicorn backend.app.main:app --reload --port 8000
 ```
 
-**Folder input (multiple documents):**
+### Open the frontend
+
 ```bash
+open frontend/app.html
+```
+
+Verify at:
+- Backend health: http://localhost:8000/
+- Swagger docs: http://localhost:8000/docs
+- Frontend SPA: `frontend/app.html` in browser
+
+## Model Configuration
+
+The project supports two model providers. Set via environment variables or CLI flags.
+
+### Option A: Local model (default)
+
+Uses HuggingFace Qwen model running on your machine. No API key needed.
+
+```bash
+# Default - no extra config required
+uvicorn backend.app.main:app --reload --port 8000
+```
+
+The first run will download the Qwen model (~3GB). Subsequent runs use the cached model.
+
+### Option B: Google Gemini (hosted)
+
+Uses Google's Gemini API. Faster, no local GPU needed, better output quality.
+
+**1. Get an API key:**
+- Go to https://aistudio.google.com/apikey
+- Create an API key
+
+**2. Create a `.env` file** in the project root (copy from the template):
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env`:
+
+```env
+PRDGEN_PROVIDER=gemini
+GOOGLE_API_KEY=your-api-key-here
+```
+
+The `.env` file is gitignored so your key won't be committed.
+
+**3. Start the backend:**
+
+```bash
+uvicorn backend.app.main:app --reload --port 8000
+```
+
+You can also set these as shell environment variables instead if you prefer — shell env vars take precedence over `.env`.
+
+### Switching between providers
+
+Edit `PRDGEN_PROVIDER` in your `.env` file and restart the backend:
+
+```env
+# .env — switch to Gemini
+PRDGEN_PROVIDER=gemini
+
+# .env — switch back to local
+PRDGEN_PROVIDER=local
+```
+
+## Phased Generation Workflow
+
+The v2 guided flow walks users through 6 screens:
+
+```
+Create Project -> Create Assessment -> Choose Path (Greenfield/Modernization)
+     -> Questionnaire -> Upload Documents -> Phase Dashboard
+```
+
+### Phase 1: Foundation
+- Context Summary, Corpus Summary, PRD, Capabilities
+- Requires: questionnaire + uploaded documents
+
+### Phase 2: Planning
+- Capability Cards, Epics, Features, Roadmap
+- Requires: Phase 1 approved
+
+### Phase 3: Detail
+- User Stories (Gherkin), Technical Architecture, Lean Canvas
+- Requires: Phase 2 approved
+
+Each phase produces artifacts for review. You can edit editable artifacts (e.g., PRD) before approving. Rejected phases can be regenerated with feedback.
+
+After all 3 phases are approved, download the consolidated **Assessment Pack** ZIP.
+
+## CLI Usage
+
+```bash
+# Local model (default)
 python -m prdgen.cli \
   --input-dir examples/loan_underwriting_docs \
-  --outdir out \
-  --model-id Qwen/Qwen2.5-1.5B-Instruct \
-  --max-new-tokens 800 \
-  --temperature 0.5
+  --outdir out
+
+# Gemini model
+python -m prdgen.cli \
+  --provider gemini \
+  --input-dir examples/loan_underwriting_docs \
+  --outdir out
+
+# Single file input
+python -m prdgen.cli \
+  --input examples/intent_analytics.txt \
+  --outdir out
 ```
 
-**CLI Options:**
+### CLI Options
+
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--input` | Single input file | - |
-| `--input-dir` | Folder with multiple documents | - |
-| `--outdir` | Output directory | `out` |
-| `--model-id` | Hugging Face model ID | `Qwen/Qwen2.5-1.5B-Instruct` |
-| `--max-new-tokens` | Max tokens per generation | `1200` |
+| `--provider` | `local` or `gemini` | `local` |
+| `--gemini-model` | Gemini model name | `gemini-2.0-flash` |
+| `--model-id` | HuggingFace model ID (local only) | `Qwen/Qwen2.5-1.5B-Instruct` |
+| `--device` | `cpu` or `cuda` (local only) | `cpu` |
+| `--max-new-tokens` | Max tokens per generation | `800` |
 | `--temperature` | Generation temperature | `0.5` |
-| `--device` | `cpu` or `cuda` | `cpu` |
-
-### Option 2: Web Application
-
-**Start the backend server:**
-```bash
-cd backend
-./run.sh
-
-# Or manually:
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-**Open the frontend:**
-```bash
-open frontend/index.html
-# Or serve via Python:
-cd frontend && python3 -m http.server 3000
-```
-
-**Web UI Features:**
-- **Upload Documents**: Drag and drop files, click "Generate PRD Artifacts", download ZIP
-- **Use Folder Path**: Enter path like `examples/loan_underwriting_docs`, artifacts saved to `backend/outputs/`
+| `--input-dir` | Folder with input documents | - |
+| `--input` | Single input file | - |
+| `--outdir` | Output directory | `out` |
 
 ## Output Artifacts
 
-The generator produces these files in the output directory:
-
-| File | Description |
-|------|-------------|
-| `context_summary.md` | Structured analysis of input documents |
-| `recommendation.json` | Intelligent artifact recommendations |
-| `corpus_summary.md` | Consolidated summary of all inputs |
-| `prd.md` | Product Requirements Document |
-| `capabilities.md` | Hierarchical capability map (L0/L1/L2) |
-| `capability_cards.md` | Detailed L1 capability cards |
-| `epics.md` | High-level epics with acceptance criteria |
-| `features.md` | Epic-aware features with acceptance criteria |
-| `user_stories.md` | Developer-ready stories with Gherkin criteria |
-| `lean_canvas.md` | Business model canvas |
-| `architecture_reference.md` | Technical architecture with Mermaid diagram |
-| `architecture_reference.json` | Structured architecture data (JSON) |
-| `run.json` | Generation metadata and timing |
-
-## Two-Step Intelligent Workflow
-
-The generator uses an intelligent workflow:
-
-### Step 1: Context Assessment
-Analyzes input documents to extract:
-- Problem/Opportunity
-- Goals and Non-Goals
-- Target Personas
-- Key Functional Requirements
-- Constraints & Assumptions
-- Risks, Gaps, and Open Questions
-
-### Step 2: Artifact Recommendation
-Based on the context analysis, recommends which artifacts to generate:
-
-| Artifact | Recommended When |
-|----------|-----------------|
-| PRD | Almost always (foundation document) |
-| Capabilities | 5+ functional requirements |
-| Capability Cards | 8+ requirements (complex projects) |
-| Epics | 3+ goals OR 5+ requirements |
-| Features | 3+ requirements + personas defined |
-| User Stories | 5+ requirements + personas + technical detail |
-| Lean Canvas | Business-focused with clear problem statement |
-| Technical Architecture | Technical requirements or system design context |
-
-Each recommendation includes a confidence score (0-100) and rationale.
-
-## Pipeline Structure
-
-```
-Documents → Context Summary → PRD → Capabilities → Technical Architecture
-                                         │                    │
-                                         └→ Epics → Features → User Stories
-                                         └→ Lean Canvas
-```
+| File | Phase | Description |
+|------|-------|-------------|
+| `context_summary.md` | 1 | Structured analysis of input documents |
+| `corpus_summary.md` | 1 | Consolidated summary of all inputs |
+| `prd.md` | 1 | Product Requirements Document |
+| `capabilities.md` | 1 | Hierarchical capability map (L0/L1/L2) |
+| `capability_cards.md` | 2 | Detailed L1 capability cards |
+| `epics.md` | 2 | High-level epics with acceptance criteria |
+| `features.md` | 2 | Epic-aware features with acceptance criteria |
+| `roadmap.md` | 2 | Delivery roadmap |
+| `user_stories.md` | 3 | Developer-ready stories with Gherkin criteria |
+| `architecture_reference.md` | 3 | Technical architecture with Mermaid diagrams |
+| `lean_canvas.md` | 3 | Business model canvas |
 
 ## API Reference
 
-Base URL: `http://localhost:8000`
+Base URL: `http://localhost:8000/api/v2`
 
-### POST /api/generate
-Upload files and generate artifacts.
+### Sessions
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/sessions` | Create a new session |
+| GET | `/sessions` | List all sessions |
+| GET | `/sessions/{id}` | Get session details |
 
-**Request:** `multipart/form-data` with files
+### Questionnaire
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/sessions/{id}/questionnaire` | Get questions + saved answers |
+| POST | `/sessions/{id}/questionnaire` | Submit answers |
 
-**Response:**
-```json
-{
-  "job_id": "uuid",
-  "download_url": "/api/download/uuid",
-  "status": "completed"
-}
-```
+### Documents
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/sessions/{id}/upload` | Upload documents (multipart) |
 
-### POST /api/generate-from-path
-Generate from existing folder.
+### Phases
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/sessions/{id}/phases/{n}/generate` | Start phase generation |
+| GET | `/sessions/{id}/phases/{n}/status` | Get generation progress |
+| GET | `/sessions/{id}/phases/{n}/review` | Get artifacts for review |
+| POST | `/sessions/{id}/phases/{n}/approve` | Approve phase |
+| POST | `/sessions/{id}/phases/{n}/reject` | Reject with feedback |
 
-**Request:**
-```json
-{"folder_path": "/path/to/documents"}
-```
+### Export
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/sessions/{id}/export` | Download Assessment Pack ZIP |
+| GET | `/sessions/{id}/snapshots/{n}/download` | Download single phase snapshot |
 
-**Response:**
-```json
-{
-  "job_id": "uuid",
-  "output_path": "/path/to/outputs/uuid",
-  "status": "completed"
-}
-```
-
-### GET /api/download/{job_id}
-Download generated artifacts as ZIP.
-
-### GET /docs
-Interactive API documentation (Swagger UI).
+Full interactive docs at http://localhost:8000/docs
 
 ## Project Structure
 
 ```
 PRD-Generator-MVP/
-├── prdgen/                 # Core generation library
-│   ├── cli.py             # Command-line interface
-│   ├── config.py          # Configuration classes
-│   ├── generator.py       # Artifact generation logic
-│   ├── model.py           # Model loading
-│   ├── prompts.py         # LLM prompts
-│   ├── ingest.py          # Document ingestion
-│   ├── architecture.py    # Architecture diagram utilities
-│   ├── recommendation.py  # Artifact recommendation logic
-│   └── schemas/           # JSON schemas for structured output
-│       └── architecture_schema.py
-├── backend/               # FastAPI web backend
+├── prdgen/                     # Core generation library
+│   ├── cli.py                  # Command-line interface
+│   ├── config.py               # Configuration (provider, model, params)
+│   ├── model.py                # ModelProvider abstraction (Local + Gemini)
+│   ├── generator.py            # Artifact generation with dependency resolution
+│   ├── prompts.py              # LLM prompt templates
+│   ├── ingest.py               # Document ingestion (.txt, .md, .docx)
+│   ├── phased/                 # Phased generation engine
+│   │   ├── phases.py           # Phase definitions, snapshots, SHA-256 hashing
+│   │   └── flows.py            # PhasedFlowRunner orchestrator
+│   └── intake/                 # Questionnaire system
+│       └── questionnaire.py    # Question bank + validation
+├── backend/                    # FastAPI web backend
 │   ├── app/
-│   │   ├── main.py        # FastAPI app
-│   │   └── services/
-│   │       └── prd_service.py
-│   ├── temp/              # Uploaded files (temporary)
-│   ├── outputs/           # Generated artifacts
-│   └── run.sh             # Startup script
-├── frontend/
-│   └── index.html         # Web interface
-├── templates/             # Output templates
-├── examples/              # Example input documents
-│   └── loan_underwriting_docs/
-└── requirements.txt       # Python dependencies
+│   │   ├── main.py             # FastAPI app + startup
+│   │   ├── routers/v2.py       # V2 phased API endpoints
+│   │   ├── services/
+│   │   │   └── phase_service.py # Phase orchestration + persistence
+│   │   ├── store/
+│   │   │   └── phase_store.py  # SQLite persistence (WAL mode)
+│   │   └── models/
+│   │       └── phase_models.py # Pydantic request/response models
+│   └── requirements.txt
+├── frontend/                   # Web UI
+│   ├── app.html                # V2 SPA (guided phased flow)
+│   ├── index.html              # V1 single-shot UI (legacy)
+│   └── js/
+│       ├── api.js              # V2 API client
+│       ├── store.js            # localStorage CRUD
+│       ├── components.js       # Reusable UI builders
+│       ├── app.js              # Router + screen orchestration
+│       ├── questionnaire.js    # Dynamic form + auto-save
+│       ├── dashboard.js        # Phase cards + progress polling
+│       └── review.js           # Artifact review + editing
+├── requirements.txt            # Python dependencies
+└── README.md
 ```
-
-## Configuration (Programmatic)
-
-```python
-from prdgen.config import GenerationConfig
-from prdgen.model import load_llama
-from prdgen.generator import generate_artifacts_selective
-
-# Load model
-model = load_llama("Qwen/Qwen2.5-1.5B-Instruct")
-
-# Configure generation
-cfg = GenerationConfig(
-    enable_context_summary=True,    # Enable intelligent context analysis
-    enable_recommendation=True,      # Use smart artifact recommendations
-    output_dir="./output",
-    save_incremental=True,
-    use_cache=True
-)
-
-# Generate artifacts
-artifacts, metadata = generate_artifacts_selective(model, cfg, docs)
-```
-
-**Configuration Options:**
-| Option | Description | Default |
-|--------|-------------|---------|
-| `enable_context_summary` | Generate context assessment first | `True` |
-| `enable_recommendation` | Use intelligent recommendations | `True` |
-| `enable_architecture_diagram` | Generate technical architecture with Mermaid diagram | `True` |
-| `enable_architecture_options` | Generate alternative architecture patterns per capability | `False` |
-| `generate_only` | Override: generate only these artifacts | `None` |
-| `default_set` | Fallback artifact set (`minimal`, `business`, `development`, `complete`) | `business` |
-| `use_cache` | Cache intermediate results | `True` |
-
-## Architecture Options (Optional)
-
-When `enable_architecture_options=True`, the generator produces alternative architecture patterns for key capabilities. This is useful for:
-- **Consultant discussions** - Present trade-offs to stakeholders
-- **Decision documentation** - Capture why certain patterns were chosen
-- **Solution exploration** - Compare sync vs async, centralized vs distributed approaches
-
-**Example usage:**
-```python
-cfg = GenerationConfig(
-    enable_architecture_diagram=True,
-    enable_architecture_options=True,  # Enable alternative patterns
-)
-```
-
-**Output includes:**
-- Primary reference architecture (always generated)
-- "Architecture Options by Capability" section with:
-  - 1-2 alternative patterns per capability
-  - Explicit assumptions and trade-offs (pros/cons table)
-  - "When to choose" guidance (non-prescriptive)
-  - Mermaid diagram for each option
-
-**Important:** Options are illustrative reference patterns, not recommendations. Each option explicitly states assumptions and trade-offs for stakeholder review.
 
 ## Troubleshooting
+
+### `ModuleNotFoundError: No module named 'torch'`
+Install PyTorch CPU-only:
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+```
+
+### Gemini returns `ValueError: API key required`
+Ensure the env var is set in the same shell session:
+```bash
+echo $GOOGLE_API_KEY   # should print your key
+echo $PRDGEN_PROVIDER  # should print "gemini"
+```
 
 ### Backend won't start
 ```bash
@@ -290,47 +284,18 @@ cfg = GenerationConfig(
 lsof -i :8000
 
 # Use a different port
-uvicorn app.main:app --port 8001
-```
-
-### Import errors
-```bash
-# Ensure virtual environment is active
-source .venv/bin/activate
-
-# Reinstall dependencies
-pip install -r requirements.txt
-pip install -r backend/requirements.txt
+uvicorn backend.app.main:app --port 8001
 ```
 
 ### Frontend can't connect to backend
 - Verify backend is running on http://localhost:8000
 - Check browser console for CORS errors
-- Ensure `API_URL` in `frontend/index.html` matches backend URL
+- The frontend `api.js` expects the backend at `http://localhost:8000/api/v2`
 
-### Slow generation
+### Slow generation (local model)
 - Use `--device cuda` if you have a GPU
-- Reduce `--max-new-tokens` for faster (but shorter) outputs
-- Use smaller models for quick iterations
-
-### Out of memory
-- Use smaller models (e.g., `Qwen/Qwen2.5-1.5B-Instruct`)
-- Reduce `--max-new-tokens`
-- Close other applications to free RAM
-
-## Example: Loan Underwriting
-
-A realistic multi-document input bundle is included:
-
-```bash
-# CLI
-python -m prdgen.cli \
-  --input-dir examples/loan_underwriting_docs \
-  --outdir out \
-  --max-new-tokens 800
-
-# Web UI: Enter "examples/loan_underwriting_docs" in folder path
-```
+- Reduce `--max-new-tokens` for faster outputs
+- Or switch to `PRDGEN_PROVIDER=gemini` for cloud-hosted inference
 
 ## License
 

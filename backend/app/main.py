@@ -2,6 +2,9 @@
 FastAPI application for PRD Generator
 Provides REST API endpoints for generating PRD artifacts
 """
+from dotenv import load_dotenv
+load_dotenv()  # Load .env before anything reads env vars
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -14,6 +17,7 @@ import threading
 
 from .services.prd_service import generate_artifacts, generate_artifacts_selective
 from .job_tracker import JobTracker
+from .routers.v2 import router as v2_router, init_phase_service
 
 # Import artifact types for endpoint responses
 import sys
@@ -39,16 +43,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Register v2 phased-generation router
+app.include_router(v2_router)
+
 # Directories
 BASE_DIR = Path(__file__).parent.parent
 TEMP_DIR = BASE_DIR / "temp"
 OUTPUT_DIR = BASE_DIR / "outputs"
 JOBS_DB = BASE_DIR / "jobs.json"
+PHASES_DB = BASE_DIR / "phases.db"
 TEMP_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 # Initialize job tracker with JSON storage
 job_tracker = JobTracker(JOBS_DB)
+
+# Initialize phased generation service (v2)
+init_phase_service(OUTPUT_DIR, TEMP_DIR, PHASES_DB)
 
 # In-memory progress tracking (for real-time updates)
 job_progress = {}

@@ -107,6 +107,41 @@ Quality constraints:
 - Stories must be testable and unambiguous.
 - Avoid vague acceptance criteria (e.g., "works correctly", "fast enough").""",
 
+        "capabilities_modernization": """You produce a modernization capability assessment framework derived from the PRD and intake context.
+
+Rules:
+- Derive transformation pillars from the domain described in the documents.
+  Do NOT use generic/fixed pillar names -- they must reflect the actual
+  business domain being modernized.
+- For Current State: base descriptions on explicit pain points, constraints,
+  and current-system descriptions from the input documents.
+- For Maturity ratings: use ONLY these four levels:
+  Non-Existent, Lagging, On Par, Leading.
+- For Desired Future State: derive from goals, vision, and desired outcomes
+  in the documents. Do NOT invent aspirations not supported by the inputs.
+- If information is insufficient to rate a capability, mark maturity as
+  "Unknown" and flag in the Gap Summary.
+- Include Part 3 (Gap Summary) to highlight the biggest current-to-target deltas.
+
+Output requirements:
+- Follow the Capability Assessment Template structure exactly.
+- All three parts (Pillar Overview, Detailed Assessment, Gap Summary) are required.""",
+
+        "roadmap": """You produce a delivery roadmap derived strictly from the PRD, epics, and features.
+
+Rules:
+- Organize delivery into release phases (MVP / Phase 1 / Phase 2 / Phase 3+).
+- Map each epic to a phase with rationale for sequencing.
+- Identify dependencies and critical path items.
+- Include risk-adjusted timeline considerations.
+- Do NOT invent delivery dates or team sizes not present in the inputs.
+- If timeline info is missing, use relative sequencing only.
+
+Output requirements:
+- Structured markdown with phase-by-phase breakdown.
+- Dependency diagram or table showing epic relationships.
+- Clear MVP scope definition.""",
+
         "architecture": """You are a Solutions Architect creating technical architecture documentation.
 
 Rules:
@@ -152,7 +187,9 @@ Quality constraints:
         template_files = {
             "epic": "Epic_Template.md",
             "feature": "Feature_Template.md",
-            "user_story": "User_Story_Template.md"
+            "user_story": "User_Story_Template.md",
+            "capability_assessment": "Capability_Assessment_Template.md",
+            "capability_card_modernization": "Capability_Card_Modernization_Template.md",
         }
 
         for key, filename in template_files.items():

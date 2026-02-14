@@ -1,0 +1,183 @@
+{
+  "path_type": "greenfield",
+  "version": "v1",
+  "title": "Greenfield Product / Platform Intake",
+  "description": "Guided intake to define future state, scope, constraints, and delivery approach for a new product or platform.",
+  "sections": [
+    {
+      "id": "product_framing",
+      "title": "Product Framing",
+      "questions": [
+        {
+          "id": "gf_problem_statement",
+          "section": "product",
+          "question_text": "In one paragraph, what is the problem/opportunity and who experiences it?",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["problem_statement"]
+        },
+        {
+          "id": "gf_target_users",
+          "section": "product",
+          "question_text": "Who are the primary user groups/personas? (List each group and what they do today.)",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["personas"]
+        },
+        {
+          "id": "gf_goals",
+          "section": "product",
+          "question_text": "What are the top business goals for this product/platform? (3–7 bullets)",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["objectives"]
+        },
+        {
+          "id": "gf_non_goals",
+          "section": "product",
+          "question_text": "What are explicit non-goals or out-of-scope items for Phase 1?",
+          "input_type": "multiline_text",
+          "required": false,
+          "mapping": ["non_goals", "scope.out_of_scope"]
+        },
+        {
+          "id": "gf_success_metrics",
+          "section": "product",
+          "question_text": "What success metrics/KPIs will define success (adoption, revenue, efficiency, risk, quality)?",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["success_metrics"]
+        }
+      ]
+    },
+    {
+      "id": "scope_capabilities",
+      "title": "Scope & Capabilities",
+      "questions": [
+        {
+          "id": "gf_top_workflows",
+          "section": "product",
+          "question_text": "What are the top 5–10 user workflows the system must support (end-to-end)?",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["future_state.workflows", "capabilities_seed"]
+        },
+        {
+          "id": "gf_mvp_vs_future",
+          "section": "product",
+          "question_text": "Define MVP (Phase 1) vs Future Phases (Phase 2+): what must be in MVP, what can wait?",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["scope.mvp", "scope.future_phases"]
+        },
+        {
+          "id": "gf_integrations",
+          "section": "technology",
+          "question_text": "What systems must we integrate with (identity, billing, data sources, external APIs)?",
+          "input_type": "multiline_text",
+          "required": false,
+          "mapping": ["integrations"]
+        }
+      ]
+    },
+    {
+      "id": "constraints_nfrs",
+      "title": "Constraints & Non-Functional Requirements",
+      "questions": [
+        {
+          "id": "gf_constraints",
+          "section": "product",
+          "question_text": "List key constraints (timeline, budget, regulatory, vendor, data residency, tech constraints).",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["constraints"]
+        },
+        {
+          "id": "gf_security_compliance",
+          "section": "technology",
+          "question_text": "Any security/compliance requirements (SOC2, PCI, HIPAA, GDPR), audit needs, or data classification?",
+          "input_type": "multiline_text",
+          "required": false,
+          "mapping": ["nfrs.security", "nfrs.compliance"]
+        },
+        {
+          "id": "gf_availability_slo",
+          "section": "technology",
+          "question_text": "Availability/SLO expectations (e.g., 99.9%), RTO/RPO, business hours vs 24/7?",
+          "input_type": "text",
+          "required": false,
+          "mapping": ["nfrs.availability", "nfrs.reliability"]
+        },
+        {
+          "id": "gf_performance",
+          "section": "technology",
+          "question_text": "Performance expectations (latency targets, throughput, peak load assumptions)?",
+          "input_type": "multiline_text",
+          "required": false,
+          "mapping": ["nfrs.performance", "assumptions.scale"]
+        },
+        {
+          "id": "gf_observability",
+          "section": "technology",
+          "question_text": "Observability requirements (logging, metrics, tracing, audit trails)?",
+          "input_type": "multiline_text",
+          "required": false,
+          "mapping": ["nfrs.observability"]
+        }
+      ]
+    },
+    {
+      "id": "people_process",
+      "title": "People & Process",
+      "questions": [
+        {
+          "id": "gf_stakeholders",
+          "section": "people",
+          "question_text": "Who are key stakeholders and decision makers (product, engineering, security, legal, ops)?",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["stakeholders"]
+        },
+        {
+          "id": "gf_delivery_method",
+          "section": "process",
+          "question_text": "Preferred delivery model: Agile/Scrum, Kanban, hybrid? Release cadence expectations?",
+          "input_type": "single_select",
+          "required": false,
+          "options": ["Scrum", "Kanban", "Hybrid", "Unknown/To be defined"],
+          "mapping": ["delivery_model"]
+        },
+        {
+          "id": "gf_team_constraints",
+          "section": "people",
+          "question_text": "Team constraints: skills gaps, resource limits, required approvals, operating model constraints?",
+          "input_type": "multiline_text",
+          "required": false,
+          "mapping": ["constraints.team", "risks"]
+        }
+      ]
+    },
+    {
+      "id": "risks_open_questions",
+      "title": "Risks & Open Questions",
+      "questions": [
+        {
+          "id": "gf_known_risks",
+          "section": "product",
+          "question_text": "List known risks (product, tech, delivery, compliance) and what would mitigate them.",
+          "input_type": "multiline_text",
+          "required": false,
+          "mapping": ["risks"]
+        },
+        {
+          "id": "gf_open_questions",
+          "section": "product",
+          "question_text": "What key open questions must be answered to finalize scope and architecture?",
+          "input_type": "multiline_text",
+          "required": true,
+          "mapping": ["open_questions"]
+        }
+      ]
+    }
+  ]
+}

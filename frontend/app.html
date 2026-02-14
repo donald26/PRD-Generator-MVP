@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PRD Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .markdown-body h1 { font-size: 1.5rem; font-weight: 700; margin: 1rem 0 0.5rem; }
+    .markdown-body h2 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.25rem; }
+    .markdown-body h3 { font-size: 1.1rem; font-weight: 600; margin: 0.75rem 0 0.25rem; }
+    .markdown-body p { margin: 0.25rem 0; }
+    .markdown-body ul, .markdown-body ol { margin: 0.25rem 0 0.25rem 1.5rem; }
+    .markdown-body li { margin: 0.15rem 0; }
+    .markdown-body table { border-collapse: collapse; width: 100%; margin: 0.5rem 0; }
+    .markdown-body th, .markdown-body td { border: 1px solid #d1d5db; padding: 0.35rem 0.5rem; text-align: left; font-size: 0.875rem; }
+    .markdown-body th { background: #f9fafb; font-weight: 600; }
+    .markdown-body code { background: #f3f4f6; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.85em; }
+    .markdown-body blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; margin: 0.5rem 0; }
+    .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+    .accordion-content.open { max-height: 4000px; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- ═══ Header ═══ -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="#projects" class="text-xl font-bold text-gray-900">PRD Generator</a>
+        <span class="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">v2</span>
+      </div>
+      <div class="flex items-center gap-4 text-sm">
+        <div id="api-status" class="text-gray-400 text-xs flex items-center gap-1">
+          <span class="w-2 h-2 rounded-full bg-gray-300 inline-block"></span> Checking...
+        </div>
+        <a href="index.html" class="text-gray-500 hover:text-gray-700 text-xs">Legacy UI</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══ Breadcrumb ═══ -->
+  <div class="max-w-6xl mx-auto px-4 py-2">
+    <nav id="breadcrumb" class="text-sm text-gray-500"></nav>
+  </div>
+
+  <!-- ═══ Toast Container ═══ -->
+  <div id="toast-container" class="fixed top-16 right-4 z-50 w-80"></div>
+
+  <!-- ═══ Main Content ═══ -->
+  <main class="max-w-6xl mx-auto px-4 pb-12">
+
+    <!-- ── Screen 1: Projects ── -->
+    <section data-screen="projects" class="hidden">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-lg font-semibold text-gray-900">Projects</h2>
+        <button onclick="toggleNewProjectPanel()" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+          + New Project
+        </button>
+      </div>
+
+      <!-- New project form -->
+      <div id="new-project-panel" class="hidden bg-white rounded-lg border border-gray-200 shadow-sm p-5 mb-6">
+        <form id="new-project-form" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Project Name</label>
+            <input id="proj-name" type="text" required placeholder="e.g. Loan Platform"
+                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Client</label>
+            <input id="proj-client" type="text" required placeholder="e.g. Acme Financial"
+                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Industry</label>
+            <select id="proj-industry"
+                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            </select>
+          </div>
+          <div>
+            <button type="submit" class="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+              Create
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </section>
+
+    <!-- ── Screen 2: Assessments ── -->
+    <section data-screen="assessments" class="hidden">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-lg font-semibold text-gray-900">
+          <span id="assessments-project-name"></span> — Assessments
+        </h2>
+        <button onclick="showPathSelection()" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+          + New Assessment
+        </button>
+      </div>
+
+      <!-- Path selection -->
+      <div id="path-select-panel" class="hidden mb-6">
+        <p class="text-sm text-gray-600 mb-3">Choose assessment type:</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div onclick="selectPath('greenfield')"
+               class="bg-white rounded-lg border-2 border-gray-200 p-6 cursor-pointer hover:border-teal-400 hover:shadow-md transition-all text-center">
+            <div class="text-3xl mb-2">🌱</div>
+            <h3 class="font-semibold text-gray-900 mb-1">Greenfield</h3>
+            <p class="text-sm text-gray-500">New product or platform — 14 questions across 5 sections</p>
+          </div>
+          <div onclick="selectPath('modernization')"
+               class="bg-white rounded-lg border-2 border-gray-200 p-6 cursor-pointer hover:border-orange-400 hover:shadow-md transition-all text-center">
+            <div class="text-3xl mb-2">🔄</div>
+            <h3 class="font-semibold text-gray-900 mb-1">Modernization</h3>
+            <p class="text-sm text-gray-500">Modernize existing system — 17 questions across 7 sections</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="assessments-list"></div>
+    </section>
+
+    <!-- ── Screen 4: Questionnaire ── -->
+    <section data-screen="questionnaire" class="hidden">
+      <div id="questionnaire-header" class="mb-6"></div>
+      <div id="questionnaire-progress" class="mb-4"></div>
+      <div id="questionnaire-sections"></div>
+      <div id="questionnaire-actions" class="mt-6 flex gap-3"></div>
+    </section>
+
+    <!-- ── Screen 5: Upload ── -->
+    <section data-screen="upload" class="hidden">
+      <h2 class="text-lg font-semibold text-gray-900 mb-4">Upload Documents</h2>
+      <p class="text-sm text-gray-500 mb-4">Upload source documents (.txt, .md, .docx) to feed into generation.</p>
+
+      <div id="upload-drop-zone"
+           class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-400 transition-colors mb-4"
+           onclick="document.getElementById('upload-file-input').click()">
+        <div class="text-3xl mb-2">📄</div>
+        <p class="text-sm text-gray-600">Drag & drop files here or <span class="text-blue-600 font-medium">browse</span></p>
+        <p class="text-xs text-gray-400 mt-1">Accepts .txt, .md, .docx</p>
+        <input id="upload-file-input" type="file" multiple accept=".txt,.md,.docx" class="hidden">
+      </div>
+
+      <p id="upload-count" class="text-xs text-gray-400 mb-2">0 file(s) selected</p>
+      <div id="upload-file-list" class="mb-6"></div>
+
+      <div class="flex gap-3">
+        <button id="upload-submit-btn" class="px-6 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
+          Upload &amp; Continue
+        </button>
+        <button id="upload-skip-btn" class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+          Skip &mdash; Continue to Dashboard
+        </button>
+      </div>
+    </section>
+
+    <!-- ── Screen 6: Phase Dashboard ── -->
+    <section data-screen="dashboard" class="hidden">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-lg font-semibold text-gray-900">Phase Dashboard</h2>
+        <div id="dashboard-session-info" class="text-xs text-gray-400"></div>
+      </div>
+      <div id="phase-cards" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+      <div id="dashboard-export" class="mt-6"></div>
+    </section>
+
+    <!-- ── Screen 6b: Review ── -->
+    <section data-screen="review" class="hidden">
+      <div class="flex items-center justify-between mb-4">
+        <h2 id="review-title" class="text-lg font-semibold text-gray-900">Phase Review</h2>
+        <button onclick="navigateBackToDashboard()" class="text-sm text-gray-500 hover:text-gray-700">&larr; Back to Dashboard</button>
+      </div>
+      <div id="review-tabs" class="flex border-b border-gray-200 mb-4 overflow-x-auto"></div>
+      <div id="review-content" class="mb-6"></div>
+      <div id="review-actions" class="border-t border-gray-200 pt-4"></div>
+    </section>
+
+  </main>
+
+  <!-- ═══ Modal Overlay ═══ -->
+  <div id="modal-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-40 flex items-start justify-center pt-20">
+    <div id="modal-content" class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 p-6"></div>
+  </div>
+
+  <!-- ═══ Scripts ═══ -->
+  <script src="js/store.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/questionnaire.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/review.js"></script>
+  <script src="js/app.js"></script>
+
+  <!-- Populate industry dropdown -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const sel = document.getElementById('proj-industry');
+      if (sel) {
+        INDUSTRIES.forEach(i => {
+          const opt = document.createElement('option');
+          opt.value = i; opt.textContent = i;
+          sel.appendChild(opt);
+        });
+      }
+    });
+  </script>
+</body>
+</html>
