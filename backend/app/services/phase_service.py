@@ -139,13 +139,29 @@ class PhaseService:
                     f"to be approved first."
                 )
 
-        # Create phase gate
-        gate = self.store.create_phase_gate(session_id, phase_number, phase_def.name)
-        gate_id = gate["id"]
-
-        # Init progress rows
-        artifact_types = [a.value for a in phase_def.artifacts]
-        self.store.init_generation_progress(gate_id, artifact_types)
+        # Check if phase gate already exists (e.g., from a failed attempt)
+        existing_gate = self.store.get_phase_gate(session_id, phase_number)
+        if existing_gate:
+            # Reset the existing gate for retry
+            gate_id = existing_gate["id"]
+            self.store.update_phase_gate(
+                session_id, phase_number,
+                status="generating",
+                overall_progress=0,
+                generated_at=None,
+                rejection_feedback=None
+            )
+            # Reset all artifact progress to pending
+            self.store.reset_generation_progress(gate_id)
+            gate = existing_gate
+            LOG.info(f"Resetting existing phase gate {gate_id} for retry")
+        else:
+            # Create new phase gate
+            gate = self.store.create_phase_gate(session_id, phase_number, phase_def.name)
+            gate_id = gate["id"]
+            # Init progress rows for new phase gate
+            artifact_types = [a.value for a in phase_def.artifacts]
+            self.store.init_generation_progress(gate_id, artifact_types)
         self.store.update_session(session_id, status=f"phase_{phase_number}")
         self.store.log_event(session_id, "phase_generation_started",
                            phase_number=phase_number, actor="system")

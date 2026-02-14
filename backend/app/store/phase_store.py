@@ -258,6 +258,21 @@ class PhaseStore:
         finally:
             conn.close()
 
+    def reset_generation_progress(self, phase_gate_id: int):
+        """Reset all artifact progress to pending for retry."""
+        conn = self._get_conn()
+        try:
+            conn.execute(
+                """UPDATE generation_progress
+                   SET status = 'pending', progress_pct = 0, message = NULL,
+                       started_at = NULL, completed_at = NULL, error_message = NULL
+                   WHERE phase_gate_id = ?""",
+                (phase_gate_id,),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
     def get_incomplete_artifacts(self, phase_gate_id: int) -> list:
         """For resume: returns artifacts not yet 'completed' or 'cached'."""
         conn = self._get_conn()

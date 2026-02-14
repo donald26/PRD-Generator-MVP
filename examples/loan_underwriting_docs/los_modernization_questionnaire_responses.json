@@ -1,0 +1,151 @@
+{
+  "metadata": {
+    "project_name": "LOS Modernization - Salesforce Lightning to Agentic AI LOS",
+    "path_type": "modernization",
+    "generated_on": "2026-02-14T22:38:07.394519Z"
+  },
+  "system_overview": {
+    "system_name_scope": "Modernizing legacy Salesforce Lightning-based Loan Origination System (LOS). In scope: application intake, underwriting workflows, credit/compliance checks, document processing, decisioning, integration with core banking. Out of scope: core banking ledger, servicing platform, collections workflows.",
+    "current_users": [
+      "Loan Officers (Retail & Commercial)",
+      "Underwriters",
+      "Credit Risk Analysts",
+      "Compliance Officers",
+      "Operations (Document Processing)",
+      "IT Admins"
+    ],
+    "current_capabilities": [
+      "Loan application submission",
+      "Manual underwriting workflow routing",
+      "Credit bureau integration",
+      "Customer document upload portal",
+      "Rule-based eligibility checks",
+      "Status tracking",
+      "Salesforce dashboards"
+    ]
+  },
+  "drivers_and_pain_points": {
+    "pain_points": [
+      "5\u201310 day underwriting cycle time",
+      "Manual document review and rework",
+      "Fragmented decision logs",
+      "Frequent SLA breaches",
+      "Poor customer visibility into application status",
+      "High Salesforce licensing costs",
+      "Scaling issues during peak demand"
+    ],
+    "modernization_objectives": {
+      "business": [
+        "Reduce underwriting cycle time by 40%",
+        "Improve loan conversion rate by 15%",
+        "Reduce manual processing effort by 30%",
+        "Improve compliance audit traceability"
+      ],
+      "technical": [
+        "Introduce AI-assisted underwriting and document processing",
+        "Move to event-driven microservices architecture",
+        "Improve observability and audit logging",
+        "Reduce vendor lock-in"
+      ],
+      "success_metrics": [
+        "Average decision time < 48 hours",
+        "99.9% system availability",
+        "30% reduction in manual touchpoints",
+        "100% automated audit trail for decisions"
+      ]
+    }
+  },
+  "current_architecture_and_operations": {
+    "architecture_summary": "Salesforce Lightning UI with Apex custom logic, Salesforce-managed DB, REST integrations to credit bureau, core banking (SOAP), KYC vendor, SharePoint document storage, nightly batch reconciliation jobs, on-prem middleware for legacy integrations.",
+    "integrations": [
+      "Experian credit API",
+      "KYC/AML vendor",
+      "Core banking (SOAP-based)",
+      "SharePoint document storage",
+      "Email notification system"
+    ],
+    "operational_issues": [
+      "Limited observability",
+      "No centralized tracing",
+      "Frequent credit bureau timeouts",
+      "Manual escalation handling",
+      "Environment inconsistencies"
+    ]
+  },
+  "target_state": {
+    "target_capabilities": [
+      "AI-assisted application intake",
+      "Intelligent document ingestion (OCR + extraction)",
+      "Automated underwriting recommendations",
+      "Agentic AI assistants for loan officers and underwriters",
+      "Real-time rules engine",
+      "Predictive risk scoring",
+      "Automated compliance checks",
+      "Proactive exception detection",
+      "Customer self-service status tracking"
+    ],
+    "compatibility_requirements": [
+      "Maintain customer ID mapping consistency",
+      "Preserve core banking integration contracts",
+      "Retain historical loan data access",
+      "Maintain regulatory reporting compliance"
+    ],
+    "target_nfrs": {
+      "availability": "99.9% minimum",
+      "performance": "< 2 second UI response time",
+      "decision_latency": "< 30 seconds automated approvals",
+      "security": "SOC2, PCI, GDPR compliance",
+      "observability": "Centralized logging, tracing, full audit trail",
+      "scalability": "Support 3x peak load"
+    }
+  },
+  "migration_strategy": {
+    "data_migration": "Migrate 7 years of loan history, zero data loss tolerance, <4 hour downtime window, compliance validation required.",
+    "cutover_strategy": "Phased / Strangler pattern",
+    "release_constraints": [
+      "Monthly release windows",
+      "Mandatory security review",
+      "QA and UAT approval gates"
+    ],
+    "cloud_stance": "Hybrid: AI services in cloud (GCP preferred), secure VPC connectors for sensitive integrations."
+  },
+  "people_and_org": {
+    "teams": [
+      "Retail Lending Product Team",
+      "3 Engineering Squads (Frontend, Backend, Integrations)",
+      "Risk & Compliance",
+      "Data Science",
+      "DevOps"
+    ],
+    "skill_gaps": [
+      "Limited event-driven architecture experience",
+      "Limited GenAI expertise"
+    ],
+    "change_management": [
+      "Loan officer training required",
+      "Compliance sign-off for AI explainability",
+      "Regional phased rollout"
+    ]
+  },
+  "deltas_and_risks": {
+    "critical_deltas": [
+      "Shift from rule-based to AI-assisted underwriting",
+      "Move from monolithic Salesforce to microservices",
+      "Replace batch processing with real-time processing",
+      "Automate document review via AI extraction"
+    ],
+    "known_risks": [
+      "AI explainability concerns",
+      "Data migration complexity",
+      "User resistance to AI workflows",
+      "Integration instability during cutover",
+      "Over-reliance on external AI APIs"
+    ],
+    "open_questions": [
+      "AI confidence threshold for auto-approval?",
+      "How will bias audits be handled?",
+      "Fallback process if AI services fail?",
+      "How will peak performance be validated?"
+    ]
+  }
+}
